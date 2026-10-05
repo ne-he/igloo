@@ -108,7 +108,7 @@ export class Engine {
 
   async init() {
     // Bangun semua scene paralel, lalu precompile satu per satu (blueprint 2 nomor 15).
-    await Promise.all(this.scenes.map((s) => s.build(this)))
+    await Promise.all([...this.scenes.map((s) => s.build(this)), this.composite.loadTextures()])
     this.resize()
     for (const s of this.scenes) await s.upload(this.renderer)
     await this.renderer.compileAsync(this.mainScene, this.mainCamera)
@@ -160,6 +160,7 @@ export class Engine {
     this.composite.uniforms.tScene1.value = t1
     this.composite.uniforms.tScene2.value = t2
     this.composite.uniforms.uProgress.value = st.transition
+    this.composite.jitter()
     this.composer.render(ticker.delta / 1000)
   }
 }
