@@ -30,6 +30,52 @@ uniform float uAspect;
 uniform float uDtRatio;
 `
 
+// Konversi ruang warna (buffer tengah linear HalfFloat, LUT dikerjakan di sRGB).
+ShaderChunk.igloo_colorspace = /* glsl */ `
+vec3 linearToSrgb(vec3 c) {
+  return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));
+}
+vec3 srgbToLinear(vec3 c) {
+  return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
+}
+`
+
+// Noise nilai 2D + fbm (prosedural, pengganti tekstur noise sampai M2).
+ShaderChunk.igloo_noise = /* glsl */ `
+float hash12(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+float vnoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash12(i), hash12(i + vec2(1.0, 0.0)), u.x),
+             mix(hash12(i + vec2(0.0, 1.0)), hash12(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+float fbm(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  for (int i = 0; i < 5; i++) {
+    v += a * vnoise(p);
+    p = p * 2.03 + vec2(17.1, 9.7);
+    a *= 0.5;
+  }
+  return v;
+}
+`
+
+// Gradient diagonal layar yang dipakai langit DAN kabut (blueprint 4.3): kabut tidak punya jahitan.
+ShaderChunk.igloo_skygradient = /* glsl */ `
+uniform vec3 uSkyDark;
+uniform vec3 uSkyLight;
+vec3 skyGradient(vec2 screenUv) {
+  float g = (screenUv.x + screenUv.y) * 0.5;
+  return mix(uSkyDark, uSkyLight, g * g);
+}
+`
+
 export const FULLSCREEN_VERT = /* glsl */ `
 varying vec2 vUv;
 void main() {
