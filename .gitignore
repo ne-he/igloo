@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.vite/
+# rujukan privat dari situs orang lain, jangan pernah masuk repo
+_ref_screenshots/
+# file kerja Blender besar
+art/*.blend
+art/*.blend1
+# output verifikasi lokal
+tools/verify/out/
+.env
+.env.*
+.claude/
+# dokumen rencana / handoff AI tidak masuk repo (aturan Nehemiah)
+IGLOO_INC_BLUEPRINT.md

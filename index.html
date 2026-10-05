@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>igloo study</title>
+    <meta name="description" content="A real-time WebGL study inspired by igloo.inc by abeto x Bureaux." />
+    <style>
+      html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #a0a5b1; touch-action: none; }
+      #app { position: fixed; inset: 0; }
+      #app canvas { display: block; width: 100%; height: 100%; }
+      #loader { position: fixed; inset: 0; display: grid; place-items: center; background: #a0a5b1; color: #fff;
+        font: 700 17px/1 ui-monospace, 'IBM Plex Mono', monospace; letter-spacing: 0.04em; transition: opacity 0.75s; z-index: 2; }
+      #loader.hidden { opacity: 0; pointer-events: none; }
+      .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    </style>
+  </head>
+  <body>
+    <div id="app" aria-label="Interactive 3D scene"></div>
+    <div id="loader" aria-hidden="true">---===+++=</div>
+    <main class="sr-only" id="a11y"></main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
