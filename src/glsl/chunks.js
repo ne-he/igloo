@@ -76,6 +76,23 @@ vec3 skyGradient(vec2 screenUv) {
 }
 `
 
+// Kabut gunung (blueprint 5.1): tinggi + jarak, warna = gradient langit, punggung salju tetap menyala.
+// Butuh igloo_skygradient di-include lebih dulu.
+ShaderChunk.igloo_mountainfog = /* glsl */ `
+vec3 applyMountainFog(vec3 color, float worldY, float viewZ, vec2 screenUv) {
+  float fog = clamp(1.0 - worldY * 0.05 - 0.5, 0.0, 1.0) + clamp(-viewZ * 0.005, 0.0, 1.0) * 0.75;
+  fog = clamp(fog, 0.0, 1.0);
+  vec3 fogColor = skyGradient(screenUv) * 1.1 + smoothstep(0.5, 1.0, color.r);
+  return mix(color, fogColor, fog);
+}
+`
+
+// UV proyeksi atas dari posisi lokal (aset lembah dibake dengan UV ini, lihat tools/blender/build_valley.py).
+ShaderChunk.igloo_planaruv = /* glsl */ `
+uniform vec2 uUvScale; // (1/ukuranX, 1/ukuranZ) dalam meter
+vec2 planarUv(vec3 p) { return vec2(p.x * uUvScale.x + 0.5, 0.5 - p.z * uUvScale.y); }
+`
+
 export const FULLSCREEN_VERT = /* glsl */ `
 varying vec2 vUv;
 void main() {

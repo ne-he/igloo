@@ -13,3 +13,4 @@ tools/verify/out/
 .claude/
 # dokumen rencana / handoff AI tidak masuk repo (aturan Nehemiah)
 IGLOO_INC_BLUEPRINT.md
+tools/blender/out/
