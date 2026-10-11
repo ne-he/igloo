@@ -72,6 +72,14 @@ export class Engine {
       multisampling: 0,
     })
     this.composer.addPass(new RenderPass(this.mainScene, this.mainCamera))
+    // UI pass (blueprint 4.1): scene ortho piksel digambar di atas composite tanpa clear, jadi UI
+    // kena bloom tapi tidak kena transisi. Mati sampai scene UI didaftarkan lewat setUI().
+    this.ui = null
+    this.uiPass = new RenderPass(new Scene(), this.mainCamera)
+    this.uiPass.clear = false
+    this.uiPass.ignoreBackground = true
+    this.uiPass.enabled = false
+    this.composer.addPass(this.uiPass)
     this.bloom = new BloomEffect({ ...BLOOM, mipmapBlur: true, blendFunction: BlendFunction.SCREEN })
     this.composer.addPass(new EffectPass(this.mainCamera, this.bloom))
     this.composer.addPass(new EffectPass(this.mainCamera, new SMAAEffect({ preset: SMAAPreset.HIGH })))
@@ -106,11 +114,25 @@ export class Engine {
     return scene
   }
 
+  /**
+   * Daftarkan scene UI (Scene dengan .camera ortho, build(engine), upload(renderer), update(frame)).
+   * Engine tetap tidak meng-import scene UI, main.js yang membuatnya.
+   */
+  setUI(ui) {
+    this.ui = ui
+    this.uiPass.mainScene = ui
+    this.uiPass.mainCamera = ui.camera
+    this.uiPass.enabled = true
+    return ui
+  }
+
   async init() {
     // Bangun semua scene paralel, lalu precompile satu per satu (blueprint 2 nomor 15).
-    await Promise.all([...this.scenes.map((s) => s.build(this)), this.composite.loadTextures()])
+    const ui = this.ui ? [this.ui.build(this)] : []
+    await Promise.all([...this.scenes.map((s) => s.build(this)), ...ui, this.composite.loadTextures()])
     this.resize()
     for (const s of this.scenes) await s.upload(this.renderer)
+    if (this.ui) await this.ui.upload(this.renderer)
     await this.renderer.compileAsync(this.mainScene, this.mainCamera)
   }
 
@@ -161,6 +183,7 @@ export class Engine {
     this.composite.uniforms.tScene2.value = t2
     this.composite.uniforms.uProgress.value = st.transition
     this.composite.jitter()
+    if (this.ui) this.ui.update(frame)
     this.composer.render(ticker.delta / 1000)
   }
 }
