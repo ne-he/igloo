@@ -4,11 +4,15 @@ export function installDebugHandle(engine) {
   window.__igloo = {
     engine,
     setScroll(n, { snap = true } = {}) {
+      // lompat manual = minta frame istirahat: intro yang masih jalan diselesaikan dulu
+      engine.intro?.finish()
       engine.scroll.setN(n)
       // lompat langsung tanpa damping kamera supaya screenshot deterministik
       if (snap) for (const s of engine.scenes) s.camera.snap()
     },
     enableScroll(on = true) {
+      // debug mengambil alih kunci scroll, intro tidak lagi membukanya di detik 5
+      if (engine.intro) engine.intro.manageScroll = false
       engine.scroll.enabled = on
     },
     freeze(t) {
@@ -19,6 +23,21 @@ export function installDebugHandle(engine) {
     },
     setPointer(x11, y11) {
       engine.input.position11.set(x11, y11)
+    },
+    // Kontrol timeline intro (blueprint 6.5) untuk tools/verify/intro_shots.py.
+    intro: {
+      play: () => engine.intro?.play(),
+      seek: (t) => engine.intro?.seek(t),
+      progress: (p) => engine.intro?.progress(p),
+      get time() {
+        return engine.intro ? engine.intro.timeline.time() : 0
+      },
+      get duration() {
+        return engine.intro ? engine.intro.duration : 0
+      },
+      get running() {
+        return !!engine.intro?.running
+      },
     },
     adaptive(on) {
       engine.adaptive.enabled = on

@@ -1,9 +1,16 @@
 import gsap from 'gsap'
+import { Vector3 } from 'three'
 import { BaseScene } from '../../engine/BaseScene.js'
 import { makeLutTexture, LutMaterial } from '../../grade/Lut.js'
 import { createSky, SKY } from './look.js'
-import { IglooHero } from './Bricks.js'
-import { createGround, createTerrain, createPatches, createMountains, createSnow, createSmoke, MousePoint } from './valley.js'
+import { IglooHero, getIglooIntroControls } from './Bricks.js'
+import { createGround, createTerrain, createPatches, createMountains, createSnow, createSmoke, MousePoint, getValleyIntroUniforms } from './valley.js'
+
+// Kamera intro (blueprint 6.4): dari atas (-14, 21, 14) menatap (0, 0.5, 0), dibaurkan ke jalur timeline lewat introWeight.
+const INTRO_POSITION = new Vector3(-14, 21, 14)
+const INTRO_TARGET = new Vector3(0, 0.5, 0)
+const _pos = new Vector3()
+const _target = new Vector3()
 
 // Grade sendiri untuk scene igloo (bukan LUT igloo asli). Di-tune terhadap statistik warna ref 03
 // lewat tools/verify/palette.py. Bisa diubah live: __igloo.engine.scenes[0].setGrade({...}).
@@ -25,6 +32,7 @@ export class IglooScene extends BaseScene {
     this.camera.shakeSpeed = 0.5
     this.camera.zoomFactor = 1.25
     this.mouse = new MousePoint()
+    this.introWeight = 1 // 0 = kamera intro, 1 = jalur timeline (default: intro sudah selesai)
   }
 
   async build(engine) {
@@ -37,7 +45,9 @@ export class IglooScene extends BaseScene {
     const [ground, terrain, patches, mountains, smoke] = await Promise.all([
       createGround(g, this.mouse.value), createTerrain(g), createPatches(g), createMountains(g), createSmoke(g),
     ])
-    this.add(ground, terrain, patches, mountains, smoke, createSnow(g))
+    this.snow = createSnow(g)
+    this.smoke = smoke
+    this.add(ground, terrain, patches, mountains, smoke, this.snow)
     this.igloo = await iglooReady
     this.add(this.igloo)
 
@@ -48,6 +58,24 @@ export class IglooScene extends BaseScene {
     this.timeline = gsap.timeline({ paused: true })
       .to(this.cam, { py: 2.5, ty: 1, duration: 14, ease: 'power2.out' }, 0)
       .to(this.cam, { px: -15.25, pz: 23.25, duration: 14, ease: 'power1.inOut' }, 7)
+  }
+
+  /**
+   * Semua target timeline intro (src/intro/IntroTimeline.js): uniform lembah + igloo + item level scene.
+   * Properti biasa (touchAmount, introWeight) dibungkus jadi { value } supaya bisa ditween seragam.
+   */
+  introControls() {
+    const cam = this.camera
+    const scene = this
+    return {
+      ...getValleyIntroUniforms(this),
+      ...getIglooIntroControls(this),
+      gradientAlpha: this.grade.uniforms.uGradientAlpha,
+      snowAlpha: this.snow.material.uniforms.uAlpha,
+      smokeAlpha: this.smoke.children.map((m) => m.material.uniforms.uAlpha),
+      touchAmount: { get value() { return cam.touchAmount }, set value(v) { cam.touchAmount = v } },
+      introWeight: { get value() { return scene.introWeight }, set value(v) { scene.introWeight = v } },
+    }
   }
 
   /** Ganti parameter grade live (dipakai saat tuning palet). */
@@ -61,8 +89,11 @@ export class IglooScene extends BaseScene {
   update(frame) {
     const { input, ratio } = frame
     this.timeline.progress(this.progress)
-    this.camera.basePosition.set(this.cam.px, this.cam.py, this.cam.pz)
-    this.camera.baseTarget.set(0, this.cam.ty, 0)
+    _pos.set(this.cam.px, this.cam.py, this.cam.pz)
+    _target.set(0, this.cam.ty, 0)
+    const w = this.introWeight
+    this.camera.basePosition.copy(INTRO_POSITION).lerp(_pos, w)
+    this.camera.baseTarget.copy(INTRO_TARGET).lerp(_target, w)
     this.mouse.update(this.camera, input.position11, ratio)
     this.igloo.update(frame, this.progress, this.camera)
   }

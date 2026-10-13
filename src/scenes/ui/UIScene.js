@@ -21,7 +21,7 @@ const COLOR_TEXT = 0xffffff
 const COLOR_TITLE = 0x3c3c54 // warna judul igloo (forensik 9.2), baris "// Copyright" gelap di ref 01
 const LOGO_BOLD = 0.15 // Medium ditebalkan kira-kira ke Bold lewat ambang MSDF
 const HINT_HIDE_DISTANCE = 0.59 // unit scroll dari posisi awal (forensik arsitektur 2.6)
-const INTRO_AUTO_DELAY = 0.5 // detik, sementara sampai intro igloo (M3) memancarkan 'ui_intro'
+const INTRO_AUTO_DELAY = 0.5 // detik, fallback kalau tidak ada intro igloo yang jalan (deep link, ?nointro)
 const BLOCK_STAGGER = 0.1 // [?] jeda antar blok, angka igloo tidak tercatat
 const SHOW1 = { duration: 0.4, ease: 'none' }
 const SHOW2 = { duration: 0.75, ease: 'sine.out' }
@@ -113,7 +113,8 @@ export class UIScene extends Scene {
   }
 
   update(frame) {
-    if (!this.introStarted && !this._autoIntro) {
+    // Normalnya timeline intro igloo memancarkan 'ui_intro' di detik 4.5. Auto-start hanya fallback.
+    if (!this.introStarted && !this._autoIntro && !this.engine?.intro?.running) {
       this._autoIntro = gsap.delayedCall(INTRO_AUTO_DELAY, () => this.intro())
     }
     if (!this.introStarted) return

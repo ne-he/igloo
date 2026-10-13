@@ -58,6 +58,8 @@ export class Engine {
     this.scroll = new Scroll(sections, { tween: this._tween })
     this.adaptive = new AdaptiveDPR(() => this.resize())
     this.scenes = []
+    // Timeline intro (src/intro/IntroTimeline.js), dipasang main.js. UI dan handle debug membacanya.
+    this.intro = null
 
     // Scene utama = satu fullscreen triangle dengan shader composite.
     this.composite = new CompositeMaterial(this.globals)
