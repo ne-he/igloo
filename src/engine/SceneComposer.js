@@ -31,8 +31,10 @@ export class SceneComposer {
 
   render(scene, camera) {
     const r = this.renderer
-    // autoClear renderer = true, jadi render() membersihkan RT dengan scene.background.
+    // EffectComposer pmndrs mematikan renderer.autoClear, jadi RT harus dibersihkan manual.
+    // Tanpa ini frame menumpuk (asap, salju, tepi alpha jadi gumpalan putih).
     r.setRenderTarget(this.rtScene)
+    r.clear()
     r.render(scene, camera)
 
     let read = this.rtScene
