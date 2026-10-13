@@ -7,7 +7,8 @@ import { createGround, createTerrain, createPatches, createMountains, createSnow
 
 // Grade sendiri untuk scene igloo (bukan LUT igloo asli). Di-tune terhadap statistik warna ref 03
 // lewat tools/verify/palette.py. Bisa diubah live: __igloo.engine.scenes[0].setGrade({...}).
-export const IGLOO_GRADE = { blackPoint: 0.35, gamma: 1.3, shoulder: 0.64, saturation: 0.42, tint: [0.006, 0.004, -0.022] }
+// v2 (M2): bake lembah dinaikkan ke rata-rata ~0.53 sRGB, jadi grade dilunakkan (dulu blackPoint 0.35, gamma 1.3).
+export const IGLOO_GRADE = { blackPoint: 0.1, gamma: 1.1, shoulder: 0.6, saturation: 0.7, tint: [0, 0, 0.02] }
 
 /**
  * Scene 1: igloo. M2 = lembah dengan aset bake sendiri (tanah, terrain x5, patch x2, gunung x5),

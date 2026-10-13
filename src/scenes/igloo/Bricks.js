@@ -173,7 +173,7 @@ export class Bricks {
         tTriangles: { value: tTriangles },
         tOptions: { value: this.options },
         uIntroMaterialize: { value: 1 },
-        uExposure: { value: 2.5 },
+        uExposure: { value: 1.15 }, // grade igloo v2 (M2): bata ~0.85x terang tanah di dekatnya, seperti ref 03
         uBlue: { value: BLUE },
       },
       vertexShader: VERT,

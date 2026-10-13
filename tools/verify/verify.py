@@ -68,12 +68,17 @@ def main():
     ap.add_argument('--autocenter', action='store_true')
     ap.add_argument('--width', type=int, default=1024)
     ap.add_argument('--height', type=int, default=768)
+    ap.add_argument('--gpu', action='store_true', help='pakai GPU asli (D3D11), jauh lebih cepat dari SwiftShader')
     args = ap.parse_args()
     os.makedirs(OUT, exist_ok=True)
 
     errors = []
     with sync_playwright() as p:
-        browser = p.chromium.launch(args=['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'])
+        if args.gpu:
+            flags = ['--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu']
+        else:
+            flags = ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist']
+        browser = p.chromium.launch(args=flags)
         page = browser.new_page(viewport={'width': args.width, 'height': args.height})
         page.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
         page.on('pageerror', lambda e: errors.append(str(e)))

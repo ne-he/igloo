@@ -9,22 +9,31 @@ export function skyUniforms() {
   return { uSkyDark: { value: SKY.dark }, uSkyLight: { value: SKY.light } }
 }
 
-/** Langit: sphere r800 BackSide, warnanya gradient diagonal layar (abaikan geometri). */
+/**
+ * Langit: sphere r800 BackSide, warnanya gradient diagonal layar (abaikan geometri).
+ * Intro: uProgress 0 -> 1 (3 s di detik 1.5) membaurkan warna intro #b3bac9 ke gradient. Default 1.
+ */
 export function createSky(globals) {
   const mat = new ShaderMaterial({
     side: BackSide,
     depthWrite: false,
-    uniforms: { ...globals, ...skyUniforms() },
+    uniforms: { ...globals, ...skyUniforms(), uSkyIntro: { value: SKY.intro }, uProgress: { value: 1 } },
     vertexShader: /* glsl */ `
       void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
     `,
     fragmentShader: /* glsl */ `
       #include <igloo_globals>
       #include <igloo_skygradient>
-      void main() { gl_FragColor = vec4(skyGradient(gl_FragCoord.xy / uResolution), 1.0); }
+      uniform vec3 uSkyIntro;
+      uniform float uProgress;
+      void main() {
+        vec3 c = mix(uSkyIntro, skyGradient(gl_FragCoord.xy / uResolution), clamp(uProgress, 0.0, 1.0));
+        gl_FragColor = vec4(c, 1.0);
+      }
     `,
   })
   const sky = new Mesh(new SphereGeometry(800, 12, 12), mat)
+  sky.name = 'sky'
   sky.rotation.set((16 * Math.PI) / 180, 0, (-16 * Math.PI) / 180)
   sky.scale.x = -1
   sky.renderOrder = -10
