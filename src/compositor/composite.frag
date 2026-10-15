@@ -2,6 +2,9 @@
 // Garis depan diagonal bergerigi, ice cut dari mask R, blok geser dari mask G, gerigi dari mask B,
 // chromatic aberration spektral 5 sampel x blue noise, parallax vertikal 0.4.
 // Digerakkan posisi scroll saja (uProgress). Mask dan blue noise = tekstur buatan sendiri.
+// M6: cabang detail (forensik shader 6.8 d). Saat uDetailProgress > 0 scene scroll dicampur ke tDetail
+// dengan displacement es (mask R, UV x5 yang mengecil seiring progress, kekuatan 0.1) + displacement blok
+// (mask G, 0.005) + CA modulator 8. Pengganti frost-datatexture igloo = kanal R mask transisi kita sendiri.
 #include <igloo_common>
 #include <igloo_globals>
 
@@ -11,6 +14,9 @@ uniform sampler2D tMask; // R ice, G blok, B halus (repeat, linear, tanpa mip, d
 uniform sampler2D tBlue; // blue noise 128, repeat, nearest
 uniform vec2 uBlueOffset; // acak tiap frame (dither temporal)
 uniform float uProgress;
+uniform sampler2D tDetail;
+uniform float uDetailProgress; // 0..1, 1.25 s power3.in saat buka, power2.out saat tutup
+uniform float uDetailProgress2; // 0..1, 1.25 s sine.out mulai 0.75 s sesudahnya, mengendalikan CA sisi detail
 varying vec2 vUv;
 
 #define CA_SAMPLES 5
@@ -40,7 +46,44 @@ vec3 chromaticAberration(sampler2D tex, vec2 uv, float amount) {
   return sum / wsum;
 }
 
+// Cabang detail. Selama transisi detail scroll sudah dipusatkan ke kristal (uProgress 0), jadi sisi
+// "kristal" cukup satu scene: tScene1, atau tScene2 kalau scroll ternyata sudah lewat separuh transisi.
+vec3 detailComposite() {
+  float p = uDetailProgress;
+  float p2 = uDetailProgress2;
+  float transition = fit(p, 0.4, 1.0, 0.0, 1.0);
+  vec3 bn = blueNoise();
+  vec2 uvTex = vec2(vUv.x * uAspect, vUv.y);
+  // displacement es: pola mask R di-zoom keluar seiring progress (skala UV 5 -> 0)
+  vec2 frostUv = uvTex * 5.0 * (1.0 - p);
+  vec2 frost = vec2(texture2D(tMask, frostUv).r, texture2D(tMask, frostUv + vec2(0.37, 0.71)).r) * 2.0 - 1.0;
+  // displacement blok kecil dari mask G, hanya sumbu x
+  float tech = texture2D(tMask, uvTex * 0.1).g * 2.0 - 1.0;
+  vec2 disp = frost * 0.1 + vec2(tech * 0.005, 0.0);
+  float edge = smoothstep(1.0, 0.5, abs(2.0 * vUv.x - 1.0)) * smoothstep(1.0, 0.5, abs(2.0 * vUv.y - 1.0));
+  float modulator = 8.0 * edge;
+
+  vec3 a = vec3(0.0);
+  vec3 d = vec3(0.0);
+  if (transition < 1.0) {
+    float ip = 1.0 - (1.0 - p) * (1.0 - p); // power2.out(p)
+    vec2 uv = vUv + disp * p;
+    float amount = modulator * ip * bn.r;
+    a = uProgress < 0.5 ? chromaticAberration(tScene1, uv, amount) : chromaticAberration(tScene2, uv, amount);
+  }
+  if (transition > 0.0) {
+    float q = 1.0 - p2;
+    float iq = 1.0 - (1.0 - q) * (1.0 - q); // power2.out(1 - p2)
+    d = chromaticAberration(tDetail, vUv + disp * q, modulator * iq * bn.g);
+  }
+  return clamp(mix(a, d, transition), 0.0, 1.0);
+}
+
 void main() {
+  if (uDetailProgress > 0.0) {
+    gl_FragColor = vec4(detailComposite(), 1.0);
+    return;
+  }
   if (uProgress <= 0.0) {
     gl_FragColor = texture2D(tScene1, vUv);
     return;

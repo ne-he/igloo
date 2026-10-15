@@ -3,6 +3,7 @@ import {
   LinearFilter, LinearMipmapLinearFilter, FrontSide, BackSide, PMREMGenerator, EquirectangularReflectionMapping, Raycaster,
 } from 'three'
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js'
+import gsap from 'gsap'
 import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh'
 import { BaseScene } from '../../engine/BaseScene.js'
 import { loadGeometry, loadTexture } from '../../engine/Assets.js'
@@ -12,7 +13,7 @@ import { CrystalMaterial, makeFlatTexture, makeIceUniforms, setFlatColor } from 
 import { createBackground, createBlurryText, createShapes, createSmoke } from './Background.js'
 import { MouseFrost } from './MouseFrost.js'
 import { CrystalLabels } from './Labels.js'
-import { Plexus } from './Plexus.js'
+import { Plexus, PLEXUS } from './Plexus.js'
 import { MsdfFont } from '../../text/MsdfFont.js'
 import { bus } from '../../engine/Bus.js'
 import content from '../../content/content.js'
@@ -37,6 +38,8 @@ const LABEL_SNAP = 0.02 // lompatan progress per frame di atas ini = teleport, l
 // judul kita 196 px vs 147 px di ref 07 (dinormalisasi ke lebar 1024). Faktor ini menyamakan ukuran tampak.
 const LABEL_FONT_FIT = 0.75
 const FROST_RANGE = 0.2 // sim frost hanya jalan kalau kristal sedekat ini ke tengah (satuan progress)
+// Detail view (M6, blueprint 5.4): klik kristal -> kamera zoom -3.5 (power3.in), putaran berhenti, plexus berkedip.
+export const CRYSTAL_DETAIL = { zoom: -3.5, zoomIn: 1.25, zoomOut: 1.45 }
 
 export const CRYSTAL_GRADE = { contrast: 1.12, pivot: 0.48, saturation: 0.62, blackPoint: 0.04, gamma: 1.45, shoulder: 0.8, tint: [0.0, 0.0, 0.004] }
 
@@ -75,6 +78,12 @@ export class CrystalsScene extends BaseScene {
     this._lastProgress = null
     this._pointerSeen = false
     this._screenH = 768
+    // interaksi M6: kristal di bawah pointer (indeks atau -1), klik hanya saat interactive
+    this.hovered = -1
+    this.interactive = true
+    // 1 = berputar normal, 0 = putaran berhenti (detail terbuka). _spinLag = detik goyang yang "tertahan".
+    this.spin = { value: 1 }
+    this._spinLag = 0
   }
 
   async build(engine) {
@@ -170,6 +179,11 @@ export class CrystalsScene extends BaseScene {
     this._applyLook()
     bus.on('resize', ({ height }) => {
       this._screenH = height
+    })
+
+    // klik = geser < 15 px dan tekan < 0.5 s (Input). Rute diurus main.js lewat event 'crystal_click'.
+    bus.on('click', () => {
+      if (this.active && this.interactive && this.hovered >= 0) bus.emit('crystal_click', { index: this.hovered })
     })
 
     this.lut = makeLutTexture(CRYSTAL_GRADE)
@@ -286,6 +300,73 @@ export class CrystalsScene extends BaseScene {
     }
   }
 
+  onHide() {
+    this._setHovered(-1)
+  }
+
+  _setHovered(i) {
+    if (i === this.hovered) return
+    this.hovered = i
+    // feedback hover = cursor pointer di canvas (tanpa animasi skala, blueprint 6.6)
+    this.engine?.setCursor('crystal', i >= 0)
+  }
+
+  /**
+   * Detail dibuka untuk kristal t (dipanggil DetailController). delay = setengah durasi pemusatan scroll.
+   * Kamera zoom -3.5 dalam 1.25 + delay s power3.in, putaran berhenti, parallax mati, plexus berkedip.
+   * instant = deep link: langsung ke state akhir.
+   */
+  detailIn(t, delay = 0, { instant = false } = {}) {
+    this.interactive = false
+    this._setHovered(-1)
+    gsap.killTweensOf([this, this.spin, this.camera])
+    const dur = CRYSTAL_DETAIL.zoomIn + delay
+    if (instant) {
+      this.cameraZoom = CRYSTAL_DETAIL.zoom
+      this.spin.value = 0
+      this.camera.touchAmount = 0
+      this.camera.snap()
+      return
+    }
+    gsap.to(this, { cameraZoom: CRYSTAL_DETAIL.zoom, duration: dur, ease: 'power3.in' })
+    gsap.to(this.spin, { value: 0, duration: dur, ease: 'power2.out' })
+    gsap.to(this.camera, { touchAmount: 0, duration: dur, ease: 'power2.out' })
+    this.flashPlexus(t)
+  }
+
+  /** Detail ditutup: zoom balik dalam 1.45 s power3.out, putaran dan parallax kembali. */
+  detailOut() {
+    gsap.killTweensOf([this, this.spin, this.camera])
+    gsap.to(this, { cameraZoom: 0, duration: CRYSTAL_DETAIL.zoomOut, ease: 'power3.out' })
+    gsap.to(this.spin, { value: 1, duration: CRYSTAL_DETAIL.zoomOut, ease: 'power2.inOut' })
+    gsap.to(this.camera, {
+      touchAmount: 1, duration: CRYSTAL_DETAIL.zoomOut, ease: 'power2.inOut',
+      onComplete: () => (this.interactive = true),
+    })
+  }
+
+  /** Kedip plexus saat klik (igloo "hoverTimeline"): garis 3 x 0.075 s + 0.25 s, titik terang 1 -> 0 dalam 0.35 s. */
+  flashPlexus(t) {
+    const c = this.crystals[t]
+    if (!c) return
+    const lines = c.plexus.lines.material.uniforms.uOpacity
+    const points = c.plexus.points.material.uniforms.uColor.value
+    const base = new Color('#666666')
+    const flash = { line: 0, point: 1 }
+    const apply = () => {
+      lines.value = PLEXUS.opacity * (1 + 2.5 * flash.line)
+      points.copy(base).lerp(new Color(1, 1, 1), flash.point)
+    }
+    const tl = gsap.timeline({ onUpdate: apply, onComplete: apply })
+    for (let i = 0; i < 3; i++) {
+      tl.set(flash, { line: 1 }, i * 0.075 * 2)
+      tl.set(flash, { line: 0 }, i * 0.075 * 2 + 0.075)
+    }
+    tl.fromTo(flash, { line: 1 }, { line: 0, duration: 0.25, ease: 'power2.out', immediateRender: false }, 0.45)
+    tl.to(flash, { point: 0, duration: 0.35, ease: 'power2.out' }, 0)
+    apply()
+  }
+
   update({ time, scroll, delta, input }) {
     const camY = 4 * VERTICAL_OFFSET * this.progress
     this.camera.basePosition.set(0, camY, 5 + this.cameraZoom)
@@ -306,10 +387,14 @@ export class CrystalsScene extends BaseScene {
     f.pointer.copy(input.position11)
     f.snap = this._lastProgress === null || Math.abs(this.progress - this._lastProgress) > LABEL_SNAP
     this._lastProgress = this.progress
+    // putaran berhenti saat detail: fase goyang ditahan sebanyak waktu yang "hilang" (spin < 1).
+    // Saat spin = 1 lag tetap 0, jadi frame beku (freeze) identik dengan sebelum M6.
+    this._spinLag += f.dt * (1 - this.spin.value)
+    const wobTime = time - this._spinLag
     for (const c of this.crystals) {
       const d = c.center - this.progress
       const [sx, sy, sz] = c.spin
-      const wob = Math.sin(time * 0.3 + c.rand) * 0.1
+      const wob = Math.sin(wobTime * 0.3 + c.rand) * 0.1
       c.mesh.rotation.set(d * sx + wob, d * sy + wob, d * sz)
       // asap hanya saat kristal di tengah
       c.smoke.material.uniforms.uShow.value = Math.max(0, 1 - Math.abs(d) * 20)
@@ -327,13 +412,15 @@ export class CrystalsScene extends BaseScene {
     const pointScale = this.engine.globals.uResolution.value.y / 1300
     camera.updateMatrixWorld()
     this.raycaster.setFromCamera(f.pointer, camera)
-    for (const c of this.crystals) {
+    let hovered = -1
+    this.crystals.forEach((c, t) => {
       c.group.updateMatrixWorld(true)
       const near = Math.abs(c.center - this.progress) < FROST_RANGE
       if (c.frost && near) {
         let hit = null
         const hits = this._pointerSeen ? this.raycaster.intersectObject(c.mesh, false) : []
         if (hits.length && hits[0].uv1) hit = this._hit.copy(hits[0].uv1)
+        if (hits.length) hovered = t
         c.frost.update(now, hit)
       }
       const offsetY = c.group.position.y - camera.position.y
@@ -343,7 +430,8 @@ export class CrystalsScene extends BaseScene {
       c.labelsOn = c.labels.visible
       c.plexus.update(f.dt, offsetY, pointScale)
       c.plexusOn = c.plexus.visible
-    }
+    })
+    this._setHovered(this.interactive ? hovered : -1)
   }
 }
 

@@ -18,6 +18,7 @@ export default {
   ui: {
     scrollHint: 'Scroll down to discover.',
     sound: { label: 'Sound:', on: 'On', off: 'Off' },
+    close: 'Close', // tombol tutup detail proyek (M6)
   },
 
   manifesto: {
@@ -32,6 +33,9 @@ export default {
   },
 
   // 3 kristal portofolio. Semua isi placeholder sampai keputusan K2 (proyek mana yang dipajang).
+  // Detail view (M6, rute /portfolio/<slug>):
+  //   description = paragraf panel teks (PLACEHOLDER, jangan dianggap copy asli)
+  //   links = chip [X] [IG] [LI] [TK], dibuka di tab baru. URL example.com = PLACEHOLDER, ganti dengan link asli.
   projects: [
     {
       slug: 'project-a',
@@ -41,7 +45,20 @@ export default {
       crystal: 'crystal1',
       inner: 'inner1',
       summary: 'Placeholder summary for project A. Real copy pending.',
-      links: [{ label: 'GH', url: '' }], // [?]
+      // PLACEHOLDER [?]: dua paragraf pengisi layout panel, copy asli menyusul dari Nehemiah
+      description: [
+        'Placeholder description for project A. This paragraph only exists to fill the detail panel '
+          + 'layout while the real copy is pending. It describes nothing real and should be replaced.',
+        'Second placeholder paragraph for project A. Lorem-style filler text that wraps across several '
+          + 'lines so the column width, line height and panel scroll can be checked against the reference.',
+      ],
+      // PLACEHOLDER [?]: URL contoh, bukan akun asli
+      links: [
+        { label: 'X', url: 'https://example.com/placeholder-x' },
+        { label: 'IG', url: 'https://example.com/placeholder-ig' },
+        { label: 'LI', url: 'https://example.com/placeholder-li' },
+        { label: 'TK', url: 'https://example.com/placeholder-tk' },
+      ],
     },
     {
       slug: 'project-b',
@@ -51,7 +68,20 @@ export default {
       crystal: 'crystal2',
       inner: 'inner2',
       summary: 'Placeholder summary for project B. Real copy pending.',
-      links: [{ label: 'GH', url: '' }], // [?]
+      // PLACEHOLDER [?]: dua paragraf pengisi layout panel, copy asli menyusul dari Nehemiah
+      description: [
+        'Placeholder description for project B. This paragraph only exists to fill the detail panel '
+          + 'layout while the real copy is pending. It describes nothing real and should be replaced.',
+        'Second placeholder paragraph for project B. Lorem-style filler text that wraps across several '
+          + 'lines so the column width, line height and panel scroll can be checked against the reference.',
+      ],
+      // PLACEHOLDER [?]: URL contoh, bukan akun asli
+      links: [
+        { label: 'X', url: 'https://example.com/placeholder-x' },
+        { label: 'IG', url: 'https://example.com/placeholder-ig' },
+        { label: 'LI', url: 'https://example.com/placeholder-li' },
+        { label: 'TK', url: 'https://example.com/placeholder-tk' },
+      ],
     },
     {
       slug: 'project-c',
@@ -61,7 +91,20 @@ export default {
       crystal: 'crystal3',
       inner: 'inner3',
       summary: 'Placeholder summary for project C. Real copy pending.',
-      links: [{ label: 'GH', url: '' }], // [?]
+      // PLACEHOLDER [?]: dua paragraf pengisi layout panel, copy asli menyusul dari Nehemiah
+      description: [
+        'Placeholder description for project C. This paragraph only exists to fill the detail panel '
+          + 'layout while the real copy is pending. It describes nothing real and should be replaced.',
+        'Second placeholder paragraph for project C. Lorem-style filler text that wraps across several '
+          + 'lines so the column width, line height and panel scroll can be checked against the reference.',
+      ],
+      // PLACEHOLDER [?]: URL contoh, bukan akun asli
+      links: [
+        { label: 'X', url: 'https://example.com/placeholder-x' },
+        { label: 'IG', url: 'https://example.com/placeholder-ig' },
+        { label: 'LI', url: 'https://example.com/placeholder-li' },
+        { label: 'TK', url: 'https://example.com/placeholder-tk' },
+      ],
     },
   ],
 

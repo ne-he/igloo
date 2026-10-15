@@ -5,6 +5,12 @@ import { CrystalsScene } from './scenes/crystals/CrystalsScene.js'
 import { EntryScene } from './scenes/entry/EntryScene.js'
 import { UIScene } from './scenes/ui/UIScene.js'
 import { IntroTimeline, shouldSkipIntro } from './intro/IntroTimeline.js'
+import { DetailScene } from './scenes/detail/DetailScene.js'
+import { DetailPanel } from './scenes/detail/DetailPanel.js'
+import { DetailController } from './scenes/detail/DetailController.js'
+import { Router } from './router/Router.js'
+import { bus } from './engine/Bus.js'
+import content from './content/content.js'
 
 const IGLOO_REST_N = 0.658 // progress igloo 0.495
 
@@ -12,10 +18,12 @@ async function boot() {
   const engine = new Engine(document.getElementById('app'), SECTIONS)
   const byKey = Object.fromEntries(SECTIONS.map((s) => [s.key, s]))
   const igloo = engine.addScene(new IglooScene(byKey.igloo))
-  engine.addScene(new CrystalsScene(byKey.crystals))
+  const crystals = engine.addScene(new CrystalsScene(byKey.crystals))
   engine.addScene(new EntryScene(byKey.entry))
   // Scene UI ortho (logo, copyright, hint, sound), dirender setelah composite sebelum bloom.
-  engine.setUI(new UIScene())
+  const ui = engine.setUI(new UIScene())
+  // Scene detail proyek (M6): render target sendiri, dicampur composite lewat uDetailProgress.
+  const detail = engine.setDetail(new DetailScene())
 
   if (import.meta.env.DEV) {
     const { installDebugHandle } = await import('./debug/handle.js')
@@ -23,6 +31,13 @@ async function boot() {
   }
 
   await engine.init()
+  // Panel teks proyek hidup di scene UI (tidak kena transisi), memakai font UI dan sim mouse detail.
+  const panel = new DetailPanel(ui.font, detail.sim.uniform, engine.globals, engine)
+  ui.add(panel)
+  panel.resize(engine.container.clientWidth, engine.container.clientHeight)
+  await panel.compile(engine.renderer, ui.camera, ui)
+  const controller = (engine.detailController = new DetailController({ engine, crystals, detail, panel }))
+  bus.on('prerender', ({ ratio }) => controller.update(ratio))
   engine.scroll.setN(IGLOO_REST_N)
   // Intro igloo (blueprint 6.5): scroll dikunci sampai detik 5. Deep link dan ?nointro (dev) langsung ke state akhir.
   const intro = (engine.intro = new IntroTimeline(engine, igloo))
@@ -32,6 +47,20 @@ async function boot() {
   document.getElementById('loader').classList.add('hidden')
   if (skip) intro.skip()
   else intro.play()
+
+  // Router mikro (blueprint 6.6): '/' dan '/portfolio/:slug'. Deep link membuka detail langsung (intro sudah
+  // dilewati shouldSkipIntro). Semua ini jalan sebelum frame pertama (ticker baru berdetak di rAF berikutnya).
+  const router = (engine.router = new Router({
+    history: window.history,
+    location: window.location,
+    events: window,
+    base: import.meta.env.BASE_URL || '/',
+    slugs: content.projects.map((p) => p.slug),
+    canEnterProject: () => controller.canEnterProject(),
+    onRoute: (route, info) => controller.route(route, info),
+  }))
+  controller.router = router
+  router.start()
 }
 
 boot().catch((err) => {

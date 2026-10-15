@@ -58,6 +58,11 @@ export class Engine {
     this.scroll = new Scroll(sections, { tween: this._tween })
     this.adaptive = new AdaptiveDPR(() => this.resize())
     this.scenes = []
+    // Scene detail proyek (M6): BaseScene dengan composer sendiri, dirender hanya saat uDetailProgress > 0.
+    this.detail = null
+    // Pemilik yang minta cursor pointer di canvas (kristal, tombol Close, chip link). Satu Set supaya
+    // beberapa penulis tidak saling menimpa style.cursor.
+    this._cursorOwners = new Set()
     // Timeline intro (src/intro/IntroTimeline.js), dipasang main.js. UI dan handle debug membacanya.
     this.intro = null
 
@@ -128,12 +133,33 @@ export class Engine {
     return ui
   }
 
+  /**
+   * Daftarkan scene detail (M6). Composite membaca outputnya sebagai tDetail, dicampur lewat
+   * uDetailProgress / uDetailProgress2 (uniform composite, digerakkan DetailController).
+   */
+  setDetail(scene) {
+    scene.composer = new SceneComposer(this.renderer)
+    this.detail = scene
+    return scene
+  }
+
+  /** Minta / lepas cursor pointer di canvas atas nama `owner`. */
+  setCursor(owner, on) {
+    const had = this._cursorOwners.size > 0
+    if (on) this._cursorOwners.add(owner)
+    else this._cursorOwners.delete(owner)
+    const has = this._cursorOwners.size > 0
+    if (had !== has) this.renderer.domElement.style.cursor = has ? 'pointer' : ''
+  }
+
   async init() {
     // Bangun semua scene paralel, lalu precompile satu per satu (blueprint 2 nomor 15).
     const ui = this.ui ? [this.ui.build(this)] : []
-    await Promise.all([...this.scenes.map((s) => s.build(this)), ...ui, this.composite.loadTextures()])
+    const detail = this.detail ? [this.detail.build(this)] : []
+    await Promise.all([...this.scenes.map((s) => s.build(this)), ...ui, ...detail, this.composite.loadTextures()])
     this.resize()
     for (const s of this.scenes) await s.upload(this.renderer)
+    if (this.detail) await this.detail.upload(this.renderer)
     if (this.ui) await this.ui.upload(this.renderer)
     await this.renderer.compileAsync(this.mainScene, this.mainCamera)
   }
@@ -150,7 +176,7 @@ export class Engine {
     const W = Math.max(1, Math.floor(w * this.currentDpr))
     const H = Math.max(1, Math.floor(h * this.currentDpr))
     this.composer.setSize(W, H, false)
-    for (const s of this.scenes) {
+    for (const s of this.detail ? [...this.scenes, this.detail] : this.scenes) {
       s.composer.setSize(W, H)
       s.camera.resize(w / h)
     }
@@ -178,12 +204,21 @@ export class Engine {
     for (const s of this.scenes) s.active = s === cur || s === next
 
     const frame = { time, ratio, delta: ticker.delta, scroll: this.scroll, input: this.input, engine: this }
-    const t1 = this._renderSection(cur, st.current.progress, frame)
-    const t2 = next ? this._renderSection(next, st.next.progress, frame) : t1
-
-    this.composite.uniforms.tScene1.value = t1
-    this.composite.uniforms.tScene2.value = t2
-    this.composite.uniforms.uProgress.value = st.transition
+    const u = this.composite.uniforms
+    const dp = this.detail ? u.uDetailProgress.value : 0
+    // Detail terbuka penuh: scene scroll tidak dirender dan tidak di-update sama sekali (hemat GPU).
+    // Composite tidak membaca tScene1/tScene2 saat uDetailProgress = 1, jadi tekstur lama aman dibiarkan.
+    if (dp < 1) {
+      const t1 = this._renderSection(cur, st.current.progress, frame)
+      const t2 = next ? this._renderSection(next, st.next.progress, frame) : t1
+      u.tScene1.value = t1
+      u.tScene2.value = t2
+    }
+    u.uProgress.value = st.transition
+    if (this.detail) {
+      this.detail.active = dp > 0
+      if (dp > 0) u.tDetail.value = this._renderSection(this.detail, dp, frame)
+    }
     this.composite.jitter()
     if (this.ui) this.ui.update(frame)
     this.composer.render(ticker.delta / 1000)

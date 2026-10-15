@@ -40,6 +40,10 @@ export class CompositeMaterial extends ShaderMaterial {
         tBlue: { value: null },
         uBlueOffset: { value: new Vector2() },
         uProgress: { value: 0 },
+        // cabang detail (M6): diisi Engine kalau scene detail terdaftar
+        tDetail: { value: null },
+        uDetailProgress: { value: 0 },
+        uDetailProgress2: { value: 0 },
       },
       depthTest: false,
       depthWrite: false,

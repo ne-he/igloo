@@ -1,5 +1,7 @@
 // Handle verifikasi (blueprint 7.4 nomor 6). Hanya dipasang di dev (import.meta.env.DEV),
 // tidak ikut bundle produksi. Dipakai script Playwright untuk screenshot deterministik.
+import gsap from 'gsap'
+
 export function installDebugHandle(engine) {
   window.__igloo = {
     engine,
@@ -38,6 +40,45 @@ export function installDebugHandle(engine) {
       get running() {
         return !!engine.intro?.running
       },
+    },
+    // Detail view + router (M6) untuk tools/verify/detail_shots.py.
+    detail: {
+      state() {
+        const c = engine.detailController
+        const u = engine.composite.uniforms
+        return {
+          state: c ? c.state : null,
+          slug: c ? c.slug : null,
+          dp: u.uDetailProgress.value,
+          dp2: u.uDetailProgress2.value,
+          path: window.location.pathname,
+          blocked: !!engine.router?.blocked,
+          scrollEnabled: engine.scroll.enabled,
+          hovered: engine.scenes.find((s) => s.key === 'crystals')?.hovered ?? -1,
+          cursor: engine.renderer.domElement.style.cursor,
+          panelScroll: c ? c.panel.scrollY : 0,
+          panelScrollMax: c ? c.panel.scrollMax : 0,
+        }
+      },
+      // buka lewat router (sama seperti klik kristal), indeks proyek 0..2
+      open: (index) => engine.detailController?.requestOpen(index),
+      close: () => engine.detailController?.requestClose(),
+      // posisi chip link dan tombol Close dalam piksel CSS (untuk klik Playwright)
+      targets() {
+        const c = engine.detailController
+        const ui = engine.ui
+        const chips = (c?.panel.chipRects || []).map((r) => ({
+          x: (r.x0 + r.x1) / 2 + c.panel.colX, y: (r.y0 + r.y1) / 2 - c.panel.scrollY,
+        }))
+        const r = ui?.closeRect
+        return { chips, close: r ? { x: (r.x0 + r.x1) / 2, y: (r.y0 + r.y1) / 2 } : null }
+      },
+    },
+    // Bekukan semua tween gsap (transisi detail, kamera, reveal) supaya frame transisi bisa difoto tepat
+    // di detik tertentu walau screenshot Playwright lambat. Render tetap jalan.
+    pauseTweens(on = true) {
+      if (on) gsap.globalTimeline.pause()
+      else gsap.globalTimeline.resume()
     },
     adaptive(on) {
       engine.adaptive.enabled = on
