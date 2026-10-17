@@ -7,9 +7,10 @@ import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
  * Ukuran ikut layar. Sim (frost, partikel, fluid) punya RT ukuran tetap sendiri, tidak lewat sini.
  */
 export class SceneComposer {
-  constructor(renderer) {
+  /** @param {number} [type] tipe RT, default HalfFloat. Engine memberi hasil renderTargetType (fallback UnsignedByte). */
+  constructor(renderer, type = HalfFloatType) {
     this.renderer = renderer
-    const opts = { type: HalfFloatType, minFilter: LinearFilter, magFilter: LinearFilter, generateMipmaps: false }
+    const opts = { type, minFilter: LinearFilter, magFilter: LinearFilter, generateMipmaps: false }
     this.rtScene = new WebGLRenderTarget(1, 1, { ...opts, depthBuffer: true })
     this.rtA = new WebGLRenderTarget(1, 1, { ...opts, depthBuffer: false })
     this.rtB = new WebGLRenderTarget(1, 1, { ...opts, depthBuffer: false })

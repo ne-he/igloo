@@ -1,6 +1,7 @@
 import {
   Scene, OrthographicCamera, WebGLRenderTarget, HalfFloatType, LineSegments, BufferGeometry, BufferAttribute, LineBasicMaterial,
 } from 'three'
+import { renderTargetType } from '../../engine/rtType.js'
 import gsap from 'gsap'
 import { bus } from '../../engine/Bus.js'
 import { mod } from '../../engine/math.js'
@@ -20,7 +21,11 @@ import content from '../../content/content.js'
 
 const FONT_URL = '/assets/fonts/plexmono-msdf'
 const COLOR_TEXT = 0xffffff
-const COLOR_TITLE = 0x3c3c54 // warna judul igloo (forensik 9.2), baris "// Copyright" gelap di ref 01
+// Baris "// Copyright" gelap seperti ref 01. Warna igloo (forensik 9.2) 0x3c3c54 terlalu tipis di atas gunung gelap:
+// kontras WCAG di 5% piksel latar terburuk cuma 3.07 (igloo n 0.658), 3.74 (kristal n 3.35), 2.45 (entry).
+// 0x1e1e2c (hue sama, luminans kira-kira separuh) memberi 4.73 / 5.76 / 3.78. Putih lebih buruk (1.6 sampai 3.2)
+// karena latar di belakang baris ini terang. Diukur M8 lewat screenshot dengan baris judul disembunyikan.
+const COLOR_TITLE = 0x1e1e2c
 const LOGO_BOLD = 0.15 // Medium ditebalkan kira-kira ke Bold lewat ambang MSDF
 const HINT_HIDE_DISTANCE = 0.59 // unit scroll dari posisi awal (forensik arsitektur 2.6)
 const INTRO_AUTO_DELAY = 0.5 // detik, fallback kalau tidak ada intro igloo yang jalan (deep link, ?nointro)
@@ -30,6 +35,9 @@ const SHOW2 = { duration: 0.75, ease: 'sine.out' }
 // Tombol Close detail (M6). Kotak DIUKUR dari ref 08 (800 lebar, breakpoint small): 72 x 30 px -> 92 x 38 di 1024,
 // jadi dalam em teks: 7.2 x 3. Tepi kanan = lebar - margin kiri breakpoint, tepi atas = margin atas - 0.3 em.
 const CLOSE = { width: 7.2, height: 3, corner: 0.8, top: -0.3 }
+// Ikon speaker di kanan teks Sound (em ukuran teks): jarak dari teks, tinggi ikon. Garis, bukan tekstur.
+const SPEAKER = { gap: 0.7, height: 0.95 }
+const HIT_PAD = 8 // px, area klik tombol di luar kotak teks
 
 const soundLabel = (on) => `${content.ui.sound.label} ${on ? content.ui.sound.on : content.ui.sound.off}`
 
@@ -48,6 +56,9 @@ export class UIScene extends Scene {
     this.scrollStart = 0
     this._autoIntro = null
     this.detailMode = false
+    this.soundOn = false
+    this.soundRect = null
+    this.soundHover = false
   }
 
   async build(engine) {
@@ -88,13 +99,26 @@ export class UIScene extends Scene {
     this.closeHover = false
     this.add(this.closeFrame)
 
+    // Ikon speaker (M8): segmen garis, digambar ulang saat resize dan saat status bunyi berubah.
+    // Opacity mengikuti uShow1 teks Sound, jadi ikut reveal/fade blok Sound.
+    this.speaker = new LineSegments(new BufferGeometry(), new LineBasicMaterial({ color: COLOR_TEXT, transparent: true, opacity: 0, depthTest: false, depthWrite: false }))
+    this.speaker.name = 'ui_speaker'
+    this.speaker.frustumCulled = false
+    this.add(this.speaker)
+
     this.writeA11y()
     bus.on('resize', ({ width, height }) => this.resize(width, height))
     bus.on('ui_intro', () => this.intro())
-    bus.on('pointer_move', (input) => this._hoverClose(input.position))
+    bus.on('pointer_move', (input) => {
+      this._hoverClose(input.position)
+      this._hoverSound(input.position)
+    })
     bus.on('click', (input) => {
       if (this.detailMode && this._inClose(input.position)) bus.emit('detail_close')
+      else if (this._inSound(input.position)) bus.emit('audio_mute_toggle')
     })
+    // AudioManager (src/audio/Audio.js) memberi tahu status bunyi, teks ditukar dengan scramble
+    bus.on('audio_state', ({ enabled }) => this.setSoundOn(enabled))
   }
 
   /** Precompile + upload tekstur (sama seperti BaseScene.upload, versi kamera ortho). */
@@ -108,7 +132,7 @@ export class UIScene extends Scene {
     this.closeFrame.visible = closeVis[1]
     renderer.initTexture(this.font.texture)
     renderer.initTexture(glyphTableTexture(this.font))
-    const rt = new WebGLRenderTarget(2, 2, { type: HalfFloatType })
+    const rt = new WebGLRenderTarget(2, 2, { type: renderTargetType(renderer, HalfFloatType) })
     renderer.setRenderTarget(rt)
     renderer.render(this, this.camera)
     renderer.setRenderTarget(null)
@@ -137,6 +161,58 @@ export class UIScene extends Scene {
     place(t.hint, L.hint)
     place(t.sound, L.sound)
     this._layoutClose(width)
+    this._layoutSound()
+  }
+
+  /** Kotak klik tombol Sound (teks + ikon) dan geometri ikon speaker, piksel CSS y ke bawah. */
+  _layoutSound() {
+    const L = this.layout
+    if (!L) return
+    const fs = L.sound.size
+    const text = this.texts.sound
+    const h = SPEAKER.height * fs
+    const capH = this.font.capHeight * fs
+    const x0 = L.sound.x + text.layout.width + SPEAKER.gap * fs
+    const cy = L.sound.baseline - capH / 2 // pusat vertikal ikon = tengah huruf kapital
+    const seg = speakerSegments(this.soundOn, h)
+    const pos = new Float32Array((seg.length / 2) * 3)
+    for (let i = 0; i < seg.length / 2; i++) pos.set([x0 + seg[i * 2], -(cy - seg[i * 2 + 1]), 0], i * 3)
+    this.speaker.geometry.setAttribute('position', new BufferAttribute(pos, 3))
+    this.speaker.geometry.computeBoundingSphere()
+    this.soundRect = { x0: L.sound.x, y0: L.sound.baseline - capH, x1: x0 + 1.25 * h, y1: L.sound.baseline }
+  }
+
+  _inSound(p) {
+    const r = this.soundRect
+    if (!r || !this.introStarted) return false
+    return p.x >= r.x0 - HIT_PAD && p.x <= r.x1 + HIT_PAD && p.y >= r.y0 - HIT_PAD && p.y <= r.y1 + HIT_PAD
+  }
+
+  _hoverSound(p) {
+    const on = this._inSound(p)
+    if (on === this.soundHover) return
+    this.soundHover = on
+    this.engine?.setCursor('ui_sound', on)
+    if (on) {
+      // igloo: hover tombol sound = reveal ulang + "ui-long"
+      gsap.fromTo(this.texts.sound.uniforms.uShow2, { value: 0 }, { value: 1, ...SHOW2 })
+      bus.emit('audio_play', { name: 'ui-long' })
+    }
+  }
+
+  /** Tukar teks "Sound: Off/On" dengan scramble (uShow2 0 -> 1) dan gambar ulang ikon. */
+  setSoundOn(on) {
+    on = !!on
+    if (on === this.soundOn) return
+    this.soundOn = on
+    this.texts.sound.setText(soundLabel(on))
+    this._layoutSound()
+    if (this.introStarted) gsap.fromTo(this.texts.sound.uniforms.uShow2, { value: 0 }, { value: 1, ...SHOW2 })
+    const btn = typeof document !== 'undefined' && document.querySelector('#a11y button[data-sound]')
+    if (btn) {
+      btn.textContent = soundLabel(on)
+      btn.setAttribute('aria-pressed', String(on))
+    }
   }
 
   _layoutClose(width) {
@@ -233,6 +309,10 @@ export class UIScene extends Scene {
     // bingkai Close berkedip saat muncul (sin(show * 30))
     const cs = this.closeShow.value
     this.closeFrame.material.opacity = cs >= 1 ? 1 : cs * (0.85 + 0.15 * Math.sin(cs * 30))
+    // ikon speaker ikut reveal teks Sound, berkedip seperti bingkai Close saat muncul
+    const ss = this.texts.sound.uniforms.uShow1.value
+    this.speaker.material.opacity = ss >= 1 ? 1 : ss * (0.85 + 0.15 * Math.sin(ss * 30))
+    this.speaker.visible = ss > 0
     if (!this.introStarted || this.detailMode) return
     // Hint hilang setelah scroll sekitar 0.59 unit dari posisi awal, muncul lagi kalau kembali
     // (jarak dihitung melingkar karena scroll berulang tiap 10.85).
@@ -255,6 +335,8 @@ export class UIScene extends Scene {
     this.blocks.forEach((mesh, i) => {
       if (!skip.includes(mesh)) reveal(tl, mesh, i * BLOCK_STAGGER)
     })
+    // igloo: reveal logo di intro memutar "logo" (hanya terdengar kalau Sound sudah On)
+    bus.emit('audio_play', { name: 'logo' })
     this.introTl = tl
     return tl
   }
@@ -266,6 +348,8 @@ export class UIScene extends Scene {
     if (v) {
       reveal(gsap.timeline(), this.texts.hint, 0)
     } else {
+      // igloo: hint yang hilang memutar "ui-short"
+      bus.emit('audio_play', { name: 'ui-short' })
       gsap.to(u.uShow1, { value: 0, duration: 0.3, ease: 'none' })
       gsap.to(u.uShow2, { value: 0, duration: 0.3, ease: 'none' })
     }
@@ -302,8 +386,48 @@ export class UIScene extends Scene {
     add('p', content.copyright.title)
     add('p', content.copyright.text.replace(/\n/g, ' '))
     add('p', content.ui.scrollHint)
-    add('p', soundLabel(false))
+    // tombol sungguhan untuk keyboard dan pembaca layar (canvas tidak bisa difokus)
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.dataset.sound = ''
+    btn.textContent = soundLabel(this.soundOn)
+    btn.setAttribute('aria-pressed', String(this.soundOn))
+    btn.addEventListener('click', () => bus.emit('audio_mute_toggle'))
+    sec.append(btn)
   }
+}
+
+/**
+ * Segmen garis ikon speaker (piksel, x ke kanan dari tepi kiri ikon, y ke atas dari pusat).
+ * Badan kotak + corong, lalu 2 busur gelombang (On) atau tanda silang (Off).
+ */
+function speakerSegments(on, h) {
+  const s = h / 2
+  const seg = []
+  const poly = (list) => {
+    for (let i = 0; i < list.length; i++) {
+      const a = list[i]
+      const b = list[(i + 1) % list.length]
+      seg.push(a[0], a[1], b[0], b[1])
+    }
+  }
+  poly([[0, -0.3 * s], [0.35 * s, -0.3 * s], [0.35 * s, 0.3 * s], [0, 0.3 * s]]) // badan
+  poly([[0.35 * s, 0.3 * s], [0.9 * s, 0.85 * s], [0.9 * s, -0.85 * s], [0.35 * s, -0.3 * s]]) // corong
+  if (on) {
+    for (const r of [0.55 * s, 1.0 * s]) {
+      const n = 6
+      for (let i = 0; i < n; i++) {
+        const a0 = -0.8 + (1.6 * i) / n
+        const a1 = -0.8 + (1.6 * (i + 1)) / n
+        seg.push(0.9 * s + Math.cos(a0) * r, Math.sin(a0) * r, 0.9 * s + Math.cos(a1) * r, Math.sin(a1) * r)
+      }
+    }
+  } else {
+    const x0 = 1.3 * s
+    const x1 = 2.0 * s
+    seg.push(x0, -0.35 * s, x1, 0.35 * s, x0, 0.35 * s, x1, -0.35 * s)
+  }
+  return seg
 }
 
 function fadeOut(mesh, instant) {

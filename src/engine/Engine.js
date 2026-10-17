@@ -1,4 +1,8 @@
-import { WebGLRenderer, Scene, OrthographicCamera, Vector2, HalfFloatType } from 'three'
+import {
+  WebGLRenderer, Scene, OrthographicCamera, Vector2, HalfFloatType, WebGLRenderTarget, LinearFilter, ShaderMaterial,
+  CustomBlending, AddEquation, OneFactor, OneMinusSrcAlphaFactor,
+} from 'three'
+import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 import { EffectComposer, RenderPass, EffectPass, BloomEffect, SMAAEffect, SMAAPreset, BlendFunction } from 'postprocessing'
 import gsap from 'gsap'
 import { CustomEase } from 'gsap/CustomEase'
@@ -8,6 +12,7 @@ import { Input } from './Input.js'
 import { Scroll, SCROLL } from './Scroll.js'
 import { SceneComposer } from './SceneComposer.js'
 import { AdaptiveDPR } from './AdaptiveDPR.js'
+import { renderTargetType } from './rtType.js'
 import { CompositeMaterial, createFullscreenTriangle } from '../compositor/CompositeMaterial.js'
 
 gsap.registerPlugin(CustomEase)
@@ -21,6 +26,42 @@ gsap.defaults({ ease: 'power2.inOut', duration: 0.6, overwrite: 'auto' })
 
 // Bloom global (blueprint 2 nomor 7): threshold rendah di dunia pucat = rasa berkabut mahal.
 export const BLOOM = { levels: 6, luminanceThreshold: 0.2, luminanceSmoothing: 0.025, intensity: 1, radius: 0.85 }
+
+// UI tajam di layar DPR tinggi (M8). Scene 3D tetap di DPR 1.15 (blueprint 6.8), tapi kanvas dibuat di DPR asli
+// (maks 2) dan UI digambar ke RT sendiri di resolusi itu, lalu ditumpuk di atas hasil composer yang di-upscale.
+// UI_BLOOM_UNDERLAY: UI juga digambar sekali di resolusi 3D sebelum bloom, supaya teks UI tetap kena glow
+// seperti igloo (UI pass sebelum bloom). Salinan tajam menutupi salinan buram itu.
+export const UI_MAX_DPR = 2
+export const UI_BLOOM_UNDERLAY = false
+
+// Tumpuk RT UI (warna linear premultiplied) ke layar: encode sRGB di sini karena output composer sudah sRGB.
+function createUIOverlayMaterial() {
+  return new ShaderMaterial({
+    uniforms: { tUI: { value: null } },
+    vertexShader: /* glsl */ `
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = vec4(position.xy, 0.0, 1.0);
+}`,
+    fragmentShader: /* glsl */ `
+uniform sampler2D tUI;
+varying vec2 vUv;
+void main() {
+  vec4 u = texture2D(tUI, vUv);
+  if (u.a < 0.001) discard;
+  gl_FragColor = vec4(u.rgb / u.a, 1.0);
+  #include <colorspace_fragment>
+  gl_FragColor = vec4(gl_FragColor.rgb * u.a, u.a);
+}`,
+    blending: CustomBlending,
+    blendEquation: AddEquation,
+    blendSrc: OneFactor,
+    blendDst: OneMinusSrcAlphaFactor,
+    depthTest: false,
+    depthWrite: false,
+  })
+}
 
 /**
  * Engine: satu renderer WebGL2, satu loop (gsap.ticker), scene per section ke RT sendiri,
@@ -44,6 +85,10 @@ export class Engine {
     const dpr = window.devicePixelRatio || 1
     this.baseDpr = dpr <= 2 ? Math.min(dpr, 1.15) : Math.min(dpr, 1.5)
     this.currentDpr = this.baseDpr
+    // DPR kanvas + UI: asli (maks 2), tidak ikut adaptive DPR scene 3D
+    this.uiDpr = Math.max(this.baseDpr, Math.min(dpr, UI_MAX_DPR))
+    // Tipe RT aman (HalfFloat, atau UnsignedByte kalau GPU tidak bisa render float). Dicek sekali, log sekali.
+    this.rtType = renderTargetType(this.renderer, HalfFloatType)
 
     // Uniform global bersama: objek {value} yang sama di-spread ke semua material.
     this.globals = {
@@ -73,7 +118,7 @@ export class Engine {
     this.mainCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 1)
 
     this.composer = new EffectComposer(this.renderer, {
-      frameBufferType: HalfFloatType,
+      frameBufferType: this.rtType,
       depthBuffer: false,
       stencilBuffer: false,
       multisampling: 0,
@@ -87,6 +132,14 @@ export class Engine {
     this.uiPass.ignoreBackground = true
     this.uiPass.enabled = false
     this.composer.addPass(this.uiPass)
+    // RT UI resolusi asli + quad penumpuk (lihat UI_MAX_DPR)
+    this.uiRT = new WebGLRenderTarget(1, 1, {
+      type: this.rtType, minFilter: LinearFilter, magFilter: LinearFilter, generateMipmaps: false, depthBuffer: false,
+    })
+    this.uiOverlay = new FullScreenQuad(createUIOverlayMaterial())
+    this.uiOverlay.material.uniforms.tUI.value = this.uiRT.texture
+    this._uiRes = new Vector2(1, 1)
+    this._savedRes = new Vector2()
     this.bloom = new BloomEffect({ ...BLOOM, mipmapBlur: true, blendFunction: BlendFunction.SCREEN })
     this.composer.addPass(new EffectPass(this.mainCamera, this.bloom))
     this.composer.addPass(new EffectPass(this.mainCamera, new SMAAEffect({ preset: SMAAPreset.HIGH })))
@@ -116,7 +169,7 @@ export class Engine {
   }
 
   addScene(scene) {
-    scene.composer = new SceneComposer(this.renderer)
+    scene.composer = new SceneComposer(this.renderer, this.rtType)
     this.scenes.push(scene)
     return scene
   }
@@ -129,7 +182,7 @@ export class Engine {
     this.ui = ui
     this.uiPass.mainScene = ui
     this.uiPass.mainCamera = ui.camera
-    this.uiPass.enabled = true
+    this.uiPass.enabled = UI_BLOOM_UNDERLAY
     return ui
   }
 
@@ -138,7 +191,7 @@ export class Engine {
    * uDetailProgress / uDetailProgress2 (uniform composite, digerakkan DetailController).
    */
   setDetail(scene) {
-    scene.composer = new SceneComposer(this.renderer)
+    scene.composer = new SceneComposer(this.renderer, this.rtType)
     this.detail = scene
     return scene
   }
@@ -152,16 +205,42 @@ export class Engine {
     if (had !== has) this.renderer.domElement.style.cursor = has ? 'pointer' : ''
   }
 
+  /**
+   * Bongkar engine: hentikan loop, panggil dispose() tiap scene yang punya (scroll, detail, UI), lalu lepas
+   * RT dan pass milik engine. Belum dipanggil dari mana pun (dipersiapkan untuk HMR / unmount).
+   */
+  dispose() {
+    this.ticker.stop()
+    bus.off('render', this._render)
+    window.removeEventListener('resize', this._onResize)
+    for (const s of [...this.scenes, this.detail, this.ui]) {
+      if (!s) continue
+      if (typeof s.dispose === 'function') s.dispose()
+      s.composer?.dispose?.()
+    }
+    this.uiRT.dispose()
+    this.uiOverlay.material.dispose()
+    this.uiOverlay.dispose()
+    this.composer.dispose()
+    this.renderer.dispose()
+  }
+
   async init() {
     // Bangun semua scene paralel, lalu precompile satu per satu (blueprint 2 nomor 15).
     const ui = this.ui ? [this.ui.build(this)] : []
     const detail = this.detail ? [this.detail.build(this)] : []
     await Promise.all([...this.scenes.map((s) => s.build(this)), ...ui, ...detail, this.composite.loadTextures()])
     this.resize()
-    for (const s of this.scenes) await s.upload(this.renderer)
-    if (this.detail) await this.detail.upload(this.renderer)
-    if (this.ui) await this.ui.upload(this.renderer)
+    // tahap precompile, dilaporkan ke loader ASCII (LoaderProgress) sebagai pecahan 0..1
+    const uploads = [...this.scenes, this.detail, this.ui].filter(Boolean)
+    let done = 0
+    bus.emit('init_progress', 0)
+    for (const s of uploads) {
+      await s.upload(this.renderer)
+      bus.emit('init_progress', ++done / (uploads.length + 1))
+    }
     await this.renderer.compileAsync(this.mainScene, this.mainCamera)
+    bus.emit('init_progress', 1)
   }
 
   start() {
@@ -176,6 +255,13 @@ export class Engine {
     const W = Math.max(1, Math.floor(w * this.currentDpr))
     const H = Math.max(1, Math.floor(h * this.currentDpr))
     this.composer.setSize(W, H, false)
+    // composer.setSize ikut mengubah ukuran kanvas ke W x H. Kanvas dikembalikan ke DPR UI (asli): pass terakhir
+    // composer menggambar fullscreen ke kanvas, jadi gambar 3D otomatis di-upscale, buffer internal tetap W x H.
+    const UW = Math.max(W, Math.floor(w * this.uiDpr))
+    const UH = Math.max(H, Math.floor(h * this.uiDpr))
+    this.renderer.setSize(UW, UH, false)
+    this.uiRT.setSize(UW, UH)
+    this._uiRes.set(UW, UH)
     for (const s of this.detail ? [...this.scenes, this.detail] : this.scenes) {
       s.composer.setSize(W, H)
       s.camera.resize(w / h)
@@ -222,5 +308,23 @@ export class Engine {
     this.composite.jitter()
     if (this.ui) this.ui.update(frame)
     this.composer.render(ticker.delta / 1000)
+    if (this.ui) this._renderUI()
+  }
+
+  /** UI ke RT resolusi asli, lalu ditumpuk ke kanvas (lihat UI_MAX_DPR). */
+  _renderUI() {
+    const r = this.renderer
+    // shader UI yang membaca gl_FragCoord / uResolution (klip panel detail) harus melihat ukuran RT UI
+    const res = this.globals.uResolution.value
+    this._savedRes.copy(res)
+    res.copy(this._uiRes)
+    r.setRenderTarget(this.uiRT)
+    r.setClearColor(0x000000, 0)
+    r.clear(true, false, false)
+    r.render(this.ui, this.ui.camera)
+    r.setClearColor(0x000000, 1)
+    res.copy(this._savedRes)
+    r.setRenderTarget(null)
+    this.uiOverlay.render(r)
   }
 }

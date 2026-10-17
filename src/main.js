@@ -10,9 +10,15 @@ import { DetailPanel } from './scenes/detail/DetailPanel.js'
 import { DetailController } from './scenes/detail/DetailController.js'
 import { Router } from './router/Router.js'
 import { bus } from './engine/Bus.js'
+import { LoaderProgress } from './engine/LoaderProgress.js'
+import { AudioManager } from './audio/Audio.js'
 import content from './content/content.js'
 
 const IGLOO_REST_N = 0.658 // progress igloo 0.495
+
+const loaderEl = document.getElementById('loader')
+// Bar ASCII dipasang paling awal supaya semua muatan aset ikut terhitung
+const loader = new LoaderProgress(document.getElementById('loader-bar') || loaderEl)
 
 async function boot() {
   const engine = new Engine(document.getElementById('app'), SECTIONS)
@@ -43,8 +49,11 @@ async function boot() {
   const intro = (engine.intro = new IntroTimeline(engine, igloo))
   const skip = shouldSkipIntro()
   if (!skip) intro.prepare() // state detik 0 sudah terpasang sebelum frame pertama, tidak ada kedip dunia penuh
+  // Audio (M8): mute sampai gesture pertama + tombol Sound On. File diunduh di belakang setelah loader hilang.
+  const audio = (engine.audio = new AudioManager(engine))
   engine.start()
-  document.getElementById('loader').classList.add('hidden')
+  loader.finish(loaderEl)
+  setTimeout(() => audio.prefetch(), 1500)
   if (skip) intro.skip()
   else intro.play()
 
@@ -65,5 +74,6 @@ async function boot() {
 
 boot().catch((err) => {
   console.error(err)
-  document.getElementById('loader').textContent = 'WebGL2 error, cek console'
+  loader.stop()
+  loaderEl.textContent = 'WebGL2 error, cek console'
 })

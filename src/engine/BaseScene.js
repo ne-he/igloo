@@ -1,5 +1,6 @@
 import { Scene, WebGLRenderTarget, HalfFloatType } from 'three'
 import { BaseCamera } from './BaseCamera.js'
+import { renderTargetType } from './rtType.js'
 
 /**
  * Satu section = satu Scene dengan kamera dan composer sendiri.
@@ -61,7 +62,7 @@ export class BaseScene extends Scene {
         }
       }
     })
-    const rt = new WebGLRenderTarget(2, 2, { type: HalfFloatType })
+    const rt = new WebGLRenderTarget(2, 2, { type: renderTargetType(renderer, HalfFloatType) })
     renderer.setRenderTarget(rt)
     renderer.render(this, this.camera)
     renderer.setRenderTarget(null)

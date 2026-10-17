@@ -83,6 +83,24 @@ export function installDebugHandle(engine) {
     adaptive(on) {
       engine.adaptive.enabled = on
     },
+    // Audio (M8) untuk tools/verify/audio_gains.py: gain sekarang + target tiap loop, buffer ter-decode.
+    audio: {
+      state: () => engine.audio?.debugState() ?? null,
+      toggle: () => engine.audio?.setEnabled(!engine.audio.enabled),
+      play: (name) => engine.audio?.play(name),
+    },
+    // UI resolusi asli + fallback float (M8)
+    render() {
+      const c = engine.renderer.domElement
+      return {
+        canvas: [c.width, c.height],
+        composer: [engine.globals.uResolution.value.x, engine.globals.uResolution.value.y],
+        ui: [engine.uiRT.width, engine.uiRT.height],
+        sceneDpr: engine.currentDpr,
+        uiDpr: engine.uiDpr,
+        rtType: engine.rtType,
+      }
+    },
     state() {
       const s = engine.scroll.state
       return {
