@@ -3,6 +3,7 @@ import {
   RawShaderMaterial, ShaderMaterial, GLSL3, BufferGeometry, Float32BufferAttribute, Points, Color, Vector3,
   Matrix4, CustomBlending, AddEquation, SrcAlphaFactor, SrcColorFactor,
 } from 'three'
+import { floatSupport } from '../../engine/rtType.js'
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 import '../../glsl/chunks.js'
 
@@ -61,9 +62,10 @@ export const PARTICLES = {
  * (GPU HP lama). null = sim GPGPU dan fluid mati, partikel tidak tampil (posisi tidak bisa disimpan di 8 bit).
  */
 export function simTargetType(renderer) {
-  const ext = renderer.extensions
-  if (ext.has('EXT_color_buffer_float')) return FloatType
-  if (ext.has('EXT_color_buffer_half_float')) return HalfFloatType
+  // cek framebuffer sungguhan (rtType.js), ekstensi saja tidak selalu jujur
+  const s = floatSupport(renderer)
+  if (s.float) return FloatType
+  if (s.half) return HalfFloatType
   return null
 }
 

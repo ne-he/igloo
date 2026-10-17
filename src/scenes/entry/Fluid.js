@@ -1,4 +1,5 @@
 import { WebGLRenderTarget, HalfFloatType, RGBAFormat, LinearFilter, ClampToEdgeWrapping, RawShaderMaterial, GLSL3, Vector2, Color } from 'three'
+import { renderTargetType } from '../../engine/rtType.js'
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 
 // Simulasi fluida 2D kecil, satu-satunya tugasnya mendorong partikel volume (skill ref 02 bagian 8).
@@ -156,9 +157,12 @@ const FRAG = {
     }`,
 }
 
+// Tipe RT diisi constructor Fluid lewat cek kemampuan GPU (fallback UnsignedByte).
+let rtType = HalfFloatType
+
 function makeRT(w, h) {
   return new WebGLRenderTarget(w, h, {
-    type: HalfFloatType,
+    type: rtType,
     format: RGBAFormat,
     minFilter: LinearFilter,
     magFilter: LinearFilter,
@@ -191,6 +195,7 @@ class PingPong {
 export class FluidSim {
   constructor(renderer, aspect = 1) {
     this.renderer = renderer
+    rtType = renderTargetType(renderer, HalfFloatType)
     this.quad = new FullScreenQuad(null)
     this.mats = {}
     for (const [k, frag] of Object.entries(FRAG)) {

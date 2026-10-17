@@ -1,4 +1,5 @@
 import { WebGLRenderTarget, HalfFloatType, LinearFilter, ClampToEdgeWrapping, ShaderMaterial, Vector2, Color } from 'three'
+import { renderTargetType } from '../../engine/rtType.js'
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 import { clamp } from '../../engine/math.js'
 
@@ -62,7 +63,7 @@ export class MouseFrost {
     this.renderer = renderer
     this.size = size
     const opts = {
-      type: HalfFloatType,
+      type: renderTargetType(renderer, HalfFloatType),
       minFilter: LinearFilter,
       magFilter: LinearFilter,
       wrapS: ClampToEdgeWrapping,

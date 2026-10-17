@@ -191,7 +191,7 @@ export class CrystalsScene extends BaseScene {
 
     // RT pass A: resolusi internal penuh, HalfFloat, mipmap (three r165 membuat mip otomatis sesudah render).
     this._transmissionRT = new WebGLRenderTarget(1, 1, {
-      type: HalfFloatType,
+      type: engine.rtType ?? HalfFloatType, // fallback UnsignedByte di GPU tanpa render float
       generateMipmaps: true,
       minFilter: LinearMipmapLinearFilter,
       magFilter: LinearFilter,

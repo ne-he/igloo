@@ -1,4 +1,5 @@
 import { WebGLRenderTarget, HalfFloatType, LinearFilter, ShaderMaterial, Vector2, Color } from 'three'
+import { renderTargetType } from '../../engine/rtType.js'
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 import { clamp, smoothstep } from '../../engine/math.js'
 
@@ -41,7 +42,7 @@ const fragmentShader = /* glsl */ `
 export class MouseSim {
   constructor(renderer) {
     this.renderer = renderer
-    const opts = { type: HalfFloatType, minFilter: LinearFilter, magFilter: LinearFilter, generateMipmaps: false, depthBuffer: false }
+    const opts = { type: renderTargetType(renderer, HalfFloatType), minFilter: LinearFilter, magFilter: LinearFilter, generateMipmaps: false, depthBuffer: false }
     this.read = new WebGLRenderTarget(1, 1, opts)
     this.write = new WebGLRenderTarget(1, 1, opts)
     this.material = new ShaderMaterial({
