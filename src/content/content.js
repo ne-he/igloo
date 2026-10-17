@@ -32,70 +32,108 @@ export default {
     ],
   },
 
-  // 3 kristal portofolio: proyek live Nehemiah (fakta dari catatan projek, 17 Okt 2026).
-  // Detail view (M6, rute /portfolio/<slug>):
-  //   description = paragraf panel teks (PLACEHOLDER, jangan dianggap copy asli)
-  //   links = chip [X] [IG] [LI] [TK], dibuka di tab baru. URL example.com = PLACEHOLDER, ganti dengan link asli.
+  // 3 kristal = profil Nehemiah, ditulis ulang dari konten ICEBERG v2 (icev2/src/content.js, sudah
+  // diverifikasi di sana). Angka dan klaim harus sama persis dengan sumbernya, jangan ditambah (L9).
+  // Font atlas cuma punya ASCII + (c) (r) dan beberapa tanda kutip, jadi jangan pakai simbol lain.
   projects: [
     {
-      slug: 'iceberg',
-      title: 'PORTFOLIO_CO_01 ICEBERG',
-      date: '03/10/2026', // ICEBERG v2, catatan projek 3 Okt 2026
+      slug: 'about',
+      title: 'NEMI_SEC_01 ABOUT',
+      date: '17/10/2026', // tanggal konten diperbarui
       temp: 1.05,
       crystal: 'crystal1',
       inner: 'inner1',
-      summary: 'A scrollable 3D web CV.',
+      summary: 'Nehemiah Wilhelmus Junaidi, Data Science at BINUS University.',
       description: [
-        'ICEBERG is my CV told as a 3D descent: an ice cave, an ice block portal, a particle world and a '
-          + 'face, all driven by scroll. Built with React Three Fiber, drei and Blender assets.',
-        'The Ask Nemi chatbot lives inside it through a small API proxy, so visitors can ask about my work '
-          + 'without leaving the scene.',
+        'NEHEMIAH WILHELMUS JUNAIDI. Data Science undergraduate at BINUS University, Jakarta. Semester 5, '
+          + 'building at the intersection of machine learning and the web. Open to AI/ML and data internships.',
+        'EDUCATION. Bachelor of Data Science, School of Computer Science, BINUS University, on a full '
+          + 'four-year merit-based scholarship. Coursework in machine learning, deep learning, statistics, '
+          + 'databases and big data. BINUS Ambassador, and a participant in the DataHeist 2025 ML competition.',
+        'WHAT I DO. End-to-end work: from raw data and model training to the interface people actually touch. '
+          + 'Agentic workflows by default: LLM pipelines, automation-first tooling, ship fast and iterate.',
+        'STACK. Python, pandas, NumPy, Polars, DuckDB, SQL. scikit-learn, CatBoost, PyTorch, TensorFlow and Keras. '
+          + 'Gemini API, RAG with hybrid dense and BM25 retrieval, pgvector, golden-set evals. FastAPI, PostgreSQL, '
+          + 'Redis, Docker, GitHub Actions, MLflow. Three.js, React Three Fiber, Next.js, TypeScript, Blender, GSAP.',
+        'CERTIFICATIONS. NVIDIA: Deep Learning (PyTorch). RevoU: Applied AI and Integration. DSarea: AI '
+          + 'Engineering and Data Mining. MySkill: Data Analyst and Visualization. talenta.id: n8n Automation.',
+        'LANGUAGES. Indonesian, native. English, professional working proficiency (IELTS 6.5). Mandarin, '
+          + 'elementary and still learning.',
       ],
       links: [
-        { label: 'LIVE', url: 'https://ice-nemi.vercel.app' },
-        { label: 'GH', url: 'https://github.com/ne-he/icee' },
+        { label: 'CV', url: 'https://ice-nemi.vercel.app/Nehemiah-Wilhelmus-Junaidi-CV.pdf' },
+        { label: 'GH', url: 'https://github.com/ne-he' },
+        { label: 'LI', url: 'https://www.linkedin.com/in/nehemiahwj/' },
+        { label: 'MAIL', url: 'mailto:nehewj@gmail.com' },
       ],
     },
     {
-      slug: 'ask-nemi',
-      title: 'PORTFOLIO_CO_02 ASK-NEMI',
-      date: '08/06/2026', // live sejak 8 Jun 2026
+      slug: 'journey',
+      title: 'NEMI_SEC_02 JOURNEY',
+      date: '17/10/2026',
       temp: -2.4,
       crystal: 'crystal2',
       inner: 'inner2',
-      summary: 'A RAG chatbot that answers questions about my resume.',
+      summary: 'How I got here, from first datasets to deployed systems.',
       description: [
-        'Ask Nemi answers questions about my background from a knowledge base I maintain. Next.js App '
-          + 'Router, Gemini, and Supabase pgvector with 768 dimension embeddings.',
-        'Retrieval is hybrid: dense search and BM25 merged with reciprocal rank fusion, plus a confidence '
-          + 'gate so the bot says it does not know instead of guessing.',
+        'MAR TO SEP 2024 / HOPHOP OFFICE. Content creator and event organizer intern for the Genshin Impact x '
+          + 'HopHop Indonesia 2024 event. The same year, a liaison officer at the BNI National Conference 2024, '
+          + 'escorting international directors.',
+        '2024 / BINUS UNIVERSITY. Started the Data Science program in Jakarta on a full merit scholarship. '
+          + 'First lines of Python, first real datasets.',
+        'AUG 2024 TO NOW / BINUS ADMISSIONS. Admissions marketing alongside the degree: campus tours, workshops '
+          + 'and aptitude-test sessions, presenting every week. Personal record of 45 enrollments in a single '
+          + 'month against a monthly target of 3.',
+        'JUL 2025 TO MAY 2026 / PERFORMING-ARTS COACH. Coached around 40 high-school students for storytelling '
+          + 'and monologue competitions. Students took 1st place at FLS3N Storytelling and went on to the '
+          + 'provincial round.',
+        'EARLY 2026 / OUT OF THE NOTEBOOK. Churn modelling, credit scoring and end-to-end cases stopped ending '
+          + 'at the last notebook cell. Each one got pushed into a FastAPI service and a deployed endpoint.',
+        'MID 2026 / PRODUCTION HABITS. The Feature Store, the CatBoost rebuild and the CNN benchmark. The shift '
+          + 'was from a model that works to tests, CI, Docker, model cards, and honest failure modes.',
+        'SEP 2026 / SEMESTER 5. Taking earlier builds all the way to public. FinSight was rewritten into one '
+          + 'deployed Next.js app, and KENNETH, a parking app for a venture course team, went live on Firebase.',
       ],
       links: [
-        { label: 'LIVE', url: 'https://web-portofolio-rag.vercel.app' },
-        { label: 'GH', url: 'https://github.com/ne-he/web_portofolio_RAG' },
+        { label: 'CV', url: 'https://ice-nemi.vercel.app/Nehemiah-Wilhelmus-Junaidi-CV.pdf' },
+        { label: 'ICEBERG', url: 'https://ice-nemi.vercel.app' },
       ],
     },
     {
-      slug: 'verdict-analyst',
-      title: 'PORTFOLIO_CO_03 VERDICT',
-      date: '08/08/2026', // M2 + deploy 8 Agu 2026
+      slug: 'projects',
+      title: 'NEMI_SEC_03 PROJECTS',
+      date: '17/10/2026',
       temp: 0.6,
       crystal: 'crystal3',
       inner: 'inner3',
-      summary: 'An analytics agent with a causal inference engine.',
+      summary: 'Selected work. All repos at github.com/ne-he.',
       description: [
-        'VERDICT ANALYST is an agent that turns a data question into an analysis plan, runs it, and '
-          + 'reports what the numbers support. The frontend runs on Vercel, the backend on a Hugging Face Space.',
-        'Runs keep durable state, and the agent is tested against adversarial prompts so it refuses '
-          + 'conclusions the data cannot back.',
+        'VERDICT ANALYST. A data-analyst agent that writes and runs its own code in a locked Docker sandbox, '
+          + 'then recomputes every number a second way, pandas against DuckDB SQL. Causal questions route to a '
+          + 'deterministic statistics engine, never to the language model.',
+        'FINSIGHT V2. Answers questions from SEC 10-K filings, cited down to the section, or refuses. Hybrid '
+          + 'retrieval with RRF and a measured refusal gate: hit-rate@6 18/18, out-of-scope refusals 4/4, zero '
+          + 'false refusals.',
+        'ASK NEMI. A portfolio you talk to instead of read. Gemini embeddings over a personal knowledge base in '
+          + 'Supabase pgvector, hybrid retrieval, a confidence gate and streamed answers with citations.',
+        'PHISHGUARD V2. Phishing URL detection API: blocklist, allowlist, then a small model on MiniLM '
+          + 'embeddings plus 20 lexical features. 95.70% accuracy and 95.80% recall on a 1,000-URL holdout, '
+          + '37 tests.',
+        'FEATURE STORE MVP. An e-commerce feature store end to end: 23 user features, PostgreSQL offline and '
+          + 'Redis online, one user served in about 22 ms, drift dashboard, 174 tests at 95% coverage.',
+        'WASTE CLASSIFIER. Three CNNs benchmarked on TrashNet in PyTorch. ResNet50 won at 91.6% test accuracy '
+          + '(macro AUC 0.99) and runs the live demo with Grad-CAM.',
+        'ICEBERG. My 3D web CV: React Three Fiber, Blender assets through an agentic pipeline, real-time '
+          + 'refraction, and the Ask Nemi chat inside.',
       ],
       links: [
-        { label: 'LIVE', url: 'https://agentic-verdict-sand.vercel.app' },
-        { label: 'GH', url: 'https://github.com/ne-he/agentic_verdict' },
+        { label: 'VERDICT', url: 'https://agentic-verdict-sand.vercel.app' },
+        { label: 'FINSIGHT', url: 'https://finsight-v2-nine.vercel.app' },
+        { label: 'ASK NEMI', url: 'https://web-portofolio-rag.vercel.app' },
+        { label: 'GH', url: 'https://github.com/ne-he' },
       ],
     },
   ],
 
-  // 3 bentuk partikel di ruang link. URL sengaja kosong sampai Nehemiah memilih.
   // Data link ruang partikel yang dipakai ada di src/content/links.js.
 }
