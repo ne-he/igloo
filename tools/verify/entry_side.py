@@ -15,7 +15,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
 REF = os.path.join(ROOT, '_ref_screenshots')
 OUT = os.path.join(HERE, 'out')
-PAIRS = [('12_rings_portal_masuk.jpg', 5.65), ('13_rings_portal_depan.jpg', 6.5), ('14_room_partikel_pudgy.jpg', 9.5)]
+PAIRS = [('12_rings_portal_masuk.jpg', 5.65), ('13_rings_portal_depan.jpg', 6.5), ('14_room_partikel.jpg', 9.5)]
 STRIP = [5.65, 6.5, 7.5, 8.5, 9.5]
 W, H = 560, 420
 

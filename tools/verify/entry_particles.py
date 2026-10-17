@@ -22,7 +22,8 @@ from playwright.sync_api import sync_playwright
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
 OUT = os.path.join(HERE, 'out')
-REF14 = os.path.join(ROOT, '_ref_screenshots', '14_room_partikel_pudgy.jpg')
+# ref privat (tidak di repo), dicari lewat awalan nomor supaya nama file tidak ikut publik
+REF14 = next((os.path.join(ROOT, '_ref_screenshots', f) for f in sorted(os.listdir(os.path.join(ROOT, '_ref_screenshots'))) if f.startswith('14_')), '') if os.path.isdir(os.path.join(ROOT, '_ref_screenshots')) else ''
 ENTRY = '__igloo.engine.scenes.find((s) => s.key === "entry")'
 
 FPS_JS = '''(secs) => new Promise((res) => {
