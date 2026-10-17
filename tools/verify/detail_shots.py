@@ -5,7 +5,7 @@ Butuh dev server jalan. Hasil di tools/verify/out/ (m6_*.png, m6_side.png).
 
 Langkah:
   1. Home (?nointro), scroll ke kristal 2 (n 3.35), hover kristal: cursor harus 'pointer'.
-  2. Klik kristal (page.mouse.click, event pointer asli): URL jadi /portfolio/project-b,
+  2. Klik kristal (page.mouse.click, event pointer asli): URL jadi /portfolio/ask-nemi,
      frame di 0.5 / 1.5 / 3 s sesudah klik (state dp/dp2 dicatat bersama tiap frame).
   3. Detail terbuka: scene scroll tidak di-update (counter update kristal tidak naik), FPS.
   4. Sapuan mouse di atas panel (jejak + scramble), chip link (window.open di-stub, tidak buka tab).
@@ -14,7 +14,7 @@ Langkah:
   7. Forward membuka lagi, Escape menutup.
   8. Back saat transisi buka: navigasi ditunda, akhirnya tertutup di '/'.
   9. Rute proyek ditolak saat scene kristal tidak terlihat (scroll di igloo).
- 10. Deep link /portfolio/project-c langsung: detail terbuka, intro dilewati, lalu Escape.
+ 10. Deep link /portfolio/verdict-analyst langsung: detail terbuka, intro dilewati, lalu Escape.
  11. Side-by-side vs ref 08 dan 09 -> tools/verify/out/m6_side.png
 Agent lain bisa menyimpan file saat tes jalan: klien HMR Vite di-stub (tidak ada reload), dan tiap fase
 diulang (maks 3 kali) kalau halaman tetap ter-reload / konteks eksekusi hilang.
@@ -122,7 +122,7 @@ def phase_open(page, url, frames):
         page.evaluate('__igloo.pauseTweens(false); window.__t0 += performance.now() - window.__p0; 0')
         rows.append((t, el, s))
         print(f'  frame t={t}s (nyata {el:.2f}s) state={s["state"]} dp={s["dp"]:.3f} dp2={s["dp2"]:.3f} path={s["path"]}')
-    check('URL jadi /portfolio/project-b', page.evaluate('location.pathname') == '/portfolio/project-b')
+    check('URL jadi /portfolio/ask-nemi', page.evaluate('location.pathname') == '/portfolio/ask-nemi')
     check('frame 0.5 s: masih opening, navigasi diblokir', rows[0][2]['state'] == 'opening' and rows[0][2]['blocked'])
     check('frame 1.5 s: transisi detail berjalan', 0 < rows[1][2]['dp'] <= 1, f"dp={rows[1][2]['dp']:.3f}")
     wait_state(page, "s.state === 'open'", 6000)
@@ -180,7 +180,7 @@ def phase_panel(page):
     cur = state(page)['cursor']
     page.mouse.click(chip['x'], chip['y'])
     opened = page.evaluate('window.__opened')
-    check('chip [IG] buka tab baru (_blank)', len(opened) == 1 and opened[0][1] == '_blank' and 'placeholder-ig' in opened[0][0],
+    check('chip kedua [GH] buka tab baru (_blank)', len(opened) == 1 and opened[0][1] == '_blank' and 'github.com/ne-he/' in opened[0][0],
           f'opened={opened} cursor={cur!r}')
     return trail
 
@@ -219,7 +219,7 @@ def phase_back_forward(page, frames):
     check('detail tertutup penuh (dp 0)', True)
     page.go_forward()
     wait_state(page, "s.state === 'open'", 8000)
-    check('forward membuka lagi project-b', state(page)['slug'] == 'project-b' and page.evaluate('location.pathname') == '/portfolio/project-b')
+    check('forward membuka lagi ask-nemi', state(page)['slug'] == 'ask-nemi' and page.evaluate('location.pathname') == '/portfolio/ask-nemi')
     page.keyboard.press('Escape')
     wait_state(page, "s.state === 'closed'", 5000)
     check('Escape menutup, path /', page.evaluate('location.pathname') == '/')
@@ -247,20 +247,20 @@ def phase_reject(page):
     page.wait_for_timeout(1500)
     page.evaluate('__igloo.setScroll(0.658)')
     page.wait_for_timeout(300)
-    ok = page.evaluate("__igloo.engine.router.go('/portfolio/project-a')")
+    ok = page.evaluate("__igloo.engine.router.go('/portfolio/iceberg')")
     check('rute proyek ditolak saat scene kristal tidak terlihat', ok is False and page.evaluate('location.pathname') == '/')
 
 
 def phase_deeplink(browser, url, errors, frames):
     page = new_page(browser, errors)
-    page.goto(url.rstrip('/') + '/portfolio/project-c')
+    page.goto(url.rstrip('/') + '/portfolio/verdict-analyst')
     ready(page)
     page.wait_for_timeout(2000)
     s = state(page)
     intro = page.evaluate('__igloo.intro.running')
     frames['deep'] = shot(page, 'deeplink')
-    check('deep link /portfolio/project-c terbuka langsung, intro dilewati',
-          s['state'] == 'open' and s['slug'] == 'project-c' and s['dp'] == 1 and not intro, json.dumps(s))
+    check('deep link /portfolio/verdict-analyst terbuka langsung, intro dilewati',
+          s['state'] == 'open' and s['slug'] == 'verdict-analyst' and s['dp'] == 1 and not intro, json.dumps(s))
     tg = page.evaluate('__igloo.detail.targets()')
     page.mouse.move(tg['close']['x'], tg['close']['y'], steps=3)
     page.wait_for_timeout(200)
@@ -288,7 +288,7 @@ def side_by_side(frames):
         ('ref 08 detail', os.path.join(REF, '08_detail_panel.jpg'), 'kita: detail terbuka (3 s)', frames.get(3.0)),
         ('ref 09 transisi tutup', os.path.join(REF, '09_close_detail_dither_smoke.jpg'), 'kita: tengah tutup (~0.45 s)', frames.get('close')),
         ('kita: buka 0.5 s', frames.get(0.5), 'kita: buka 1.5 s', frames.get(1.5)),
-        ('kita: deep link project-c', frames.get('deep'), 'kita: jejak mouse + scramble', frames.get('trail')),
+        ('kita: deep link verdict-analyst', frames.get('deep'), 'kita: jejak mouse + scramble', frames.get('trail')),
     ]
     sheet = Image.new('RGB', (W * 2, (H + 18) * len(rows)), (20, 20, 24))
     d = ImageDraw.Draw(sheet)

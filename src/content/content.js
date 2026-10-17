@@ -32,86 +32,70 @@ export default {
     ],
   },
 
-  // 3 kristal portofolio. Semua isi placeholder sampai keputusan K2 (proyek mana yang dipajang).
+  // 3 kristal portofolio: proyek live Nehemiah (fakta dari catatan projek, 17 Okt 2026).
   // Detail view (M6, rute /portfolio/<slug>):
   //   description = paragraf panel teks (PLACEHOLDER, jangan dianggap copy asli)
   //   links = chip [X] [IG] [LI] [TK], dibuka di tab baru. URL example.com = PLACEHOLDER, ganti dengan link asli.
   projects: [
     {
-      slug: 'project-a',
-      title: 'PORTFOLIO_CO_01 PLACEHOLDER A',
-      date: 'dd/mm/yyyy', // [?]
+      slug: 'iceberg',
+      title: 'PORTFOLIO_CO_01 ICEBERG',
+      date: '03/10/2026', // ICEBERG v2, catatan projek 3 Okt 2026
       temp: 1.05,
       crystal: 'crystal1',
       inner: 'inner1',
-      summary: 'Placeholder summary for project A. Real copy pending.',
-      // PLACEHOLDER [?]: dua paragraf pengisi layout panel, copy asli menyusul dari Nehemiah
+      summary: 'A scrollable 3D web CV.',
       description: [
-        'Placeholder description for project A. This paragraph only exists to fill the detail panel '
-          + 'layout while the real copy is pending. It describes nothing real and should be replaced.',
-        'Second placeholder paragraph for project A. Lorem-style filler text that wraps across several '
-          + 'lines so the column width, line height and panel scroll can be checked against the reference.',
+        'ICEBERG is my CV told as a 3D descent: an ice cave, an ice block portal, a particle world and a '
+          + 'face, all driven by scroll. Built with React Three Fiber, drei and Blender assets.',
+        'The Ask Nemi chatbot lives inside it through a small API proxy, so visitors can ask about my work '
+          + 'without leaving the scene.',
       ],
-      // PLACEHOLDER [?]: URL contoh, bukan akun asli
       links: [
-        { label: 'X', url: 'https://example.com/placeholder-x' },
-        { label: 'IG', url: 'https://example.com/placeholder-ig' },
-        { label: 'LI', url: 'https://example.com/placeholder-li' },
-        { label: 'TK', url: 'https://example.com/placeholder-tk' },
+        { label: 'LIVE', url: 'https://ice-nemi.vercel.app' },
+        { label: 'GH', url: 'https://github.com/ne-he/icee' },
       ],
     },
     {
-      slug: 'project-b',
-      title: 'PORTFOLIO_CO_02 PLACEHOLDER B',
-      date: 'dd/mm/yyyy', // [?]
+      slug: 'ask-nemi',
+      title: 'PORTFOLIO_CO_02 ASK-NEMI',
+      date: '08/06/2026', // live sejak 8 Jun 2026
       temp: -2.4,
       crystal: 'crystal2',
       inner: 'inner2',
-      summary: 'Placeholder summary for project B. Real copy pending.',
-      // PLACEHOLDER [?]: dua paragraf pengisi layout panel, copy asli menyusul dari Nehemiah
+      summary: 'A RAG chatbot that answers questions about my resume.',
       description: [
-        'Placeholder description for project B. This paragraph only exists to fill the detail panel '
-          + 'layout while the real copy is pending. It describes nothing real and should be replaced.',
-        'Second placeholder paragraph for project B. Lorem-style filler text that wraps across several '
-          + 'lines so the column width, line height and panel scroll can be checked against the reference.',
+        'Ask Nemi answers questions about my background from a knowledge base I maintain. Next.js App '
+          + 'Router, Gemini, and Supabase pgvector with 768 dimension embeddings.',
+        'Retrieval is hybrid: dense search and BM25 merged with reciprocal rank fusion, plus a confidence '
+          + 'gate so the bot says it does not know instead of guessing.',
       ],
-      // PLACEHOLDER [?]: URL contoh, bukan akun asli
       links: [
-        { label: 'X', url: 'https://example.com/placeholder-x' },
-        { label: 'IG', url: 'https://example.com/placeholder-ig' },
-        { label: 'LI', url: 'https://example.com/placeholder-li' },
-        { label: 'TK', url: 'https://example.com/placeholder-tk' },
+        { label: 'LIVE', url: 'https://web-portofolio-rag.vercel.app' },
+        { label: 'GH', url: 'https://github.com/ne-he/web_portofolio_RAG' },
       ],
     },
     {
-      slug: 'project-c',
-      title: 'PORTFOLIO_CO_03 PLACEHOLDER C',
-      date: 'dd/mm/yyyy', // [?]
+      slug: 'verdict-analyst',
+      title: 'PORTFOLIO_CO_03 VERDICT',
+      date: '08/08/2026', // M2 + deploy 8 Agu 2026
       temp: 0.6,
       crystal: 'crystal3',
       inner: 'inner3',
-      summary: 'Placeholder summary for project C. Real copy pending.',
-      // PLACEHOLDER [?]: dua paragraf pengisi layout panel, copy asli menyusul dari Nehemiah
+      summary: 'An analytics agent with a causal inference engine.',
       description: [
-        'Placeholder description for project C. This paragraph only exists to fill the detail panel '
-          + 'layout while the real copy is pending. It describes nothing real and should be replaced.',
-        'Second placeholder paragraph for project C. Lorem-style filler text that wraps across several '
-          + 'lines so the column width, line height and panel scroll can be checked against the reference.',
+        'VERDICT ANALYST is an agent that turns a data question into an analysis plan, runs it, and '
+          + 'reports what the numbers support. The frontend runs on Vercel, the backend on a Hugging Face Space.',
+        'Runs keep durable state, and the agent is tested against adversarial prompts so it refuses '
+          + 'conclusions the data cannot back.',
       ],
-      // PLACEHOLDER [?]: URL contoh, bukan akun asli
       links: [
-        { label: 'X', url: 'https://example.com/placeholder-x' },
-        { label: 'IG', url: 'https://example.com/placeholder-ig' },
-        { label: 'LI', url: 'https://example.com/placeholder-li' },
-        { label: 'TK', url: 'https://example.com/placeholder-tk' },
+        { label: 'LIVE', url: 'https://agentic-verdict-sand.vercel.app' },
+        { label: 'GH', url: 'https://github.com/ne-he/agentic_verdict' },
       ],
     },
   ],
 
   // 3 bentuk partikel di ruang link. URL sengaja kosong sampai Nehemiah memilih.
-  links: [
-    { title: 'GitHub', url: '', volume: 'github_64', scale: 1.2 }, // [?]
-    { title: 'LinkedIn', url: '', volume: 'linkedin_64', scale: 1.3 }, // [?]
-    { title: 'Email', url: '', volume: 'email_64', scale: 1.25 }, // [?]
-  ],
+  // Data link ruang partikel yang dipakai ada di src/content/links.js.
 }
