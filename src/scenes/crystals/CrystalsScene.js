@@ -9,7 +9,7 @@ import { BaseScene } from '../../engine/BaseScene.js'
 import { loadGeometry, loadTexture } from '../../engine/Assets.js'
 import { makeLutTexture, LutMaterial } from '../../grade/Lut.js'
 import { CRYSTAL_COUNT, crystalCenter } from '../sections.js'
-import { CrystalMaterial, makeFlatTexture, makeIceUniforms, setFlatColor } from './CrystalMaterial.js'
+import { CrystalMaterial, makeFlatTexture, makeIceUniforms, setFlatColor, patchInnerDepth } from './CrystalMaterial.js'
 import { createBackground, createBlurryText, createShapes, createSmoke } from './Background.js'
 import { MouseFrost } from './MouseFrost.js'
 import { CrystalLabels } from './Labels.js'
@@ -28,8 +28,12 @@ export const REFRACTION = 'custom'
 // Tuning tampilan es M5b (pucat seperti susu, rim terang, grain halus). Live: __igloo.engine.scenes[1].setLook({...})
 //   flatA = warna datar yang dibiaskan dinding belakang di pass A, tintA/tintB = pengali cahaya terbias per pass,
 //   milk = campuran ke warna susu sebanding roughness, jitter/lodBias = kekuatan grain dan buram mip.
+// Keterbacaan (Okt 2026): absorb/density/deep = serapan Beer-Lambert sebanding tebal es asli (warna es dalam),
+//   edge/backShade = gelap facet miring di dinding depan / belakang, clearcoat/coatRough = kilap tajam per facet.
 export const ICE_LOOK = {
-  flatA: '#A6ABB7', tintA: [1, 1, 1], tintB: [0.88, 0.9, 0.93], milk: 0.08, jitter: 0.5, lodBias: 2, envIntensity: 1.0,
+  flatA: '#A6ABB7', tintA: [1, 1, 1], tintB: [0.88, 0.9, 0.93], milk: 0.08, jitter: 0.5, lodBias: 2, envIntensity: 0.6,
+  absorb: [0.5, 0.3, 0.16], density: 1.6, deep: '#2e3a4e', thickMax: 2.5, edge: 0.7, backShade: 0.6,
+  clearcoat: 0.6, coatRough: 0.06,
 }
 
 const FONT_URL = '/assets/fonts/plexmono-msdf'
@@ -153,7 +157,9 @@ export class CrystalsScene extends BaseScene {
       const plexus = new Plexus(geo.boundingSphere.radius, t + 1)
       // objek dalam: bake plester terang, digambar terakhir dengan depth dibersihkan dulu, jadi selalu tampil
       // di dalam kristalnya walau dinding rongga (normal menghadap ke dalam) ikut dirender BackSide di pass A
-      const inner = new Mesh(innerGeos[t], new MeshBasicMaterial({ map: innerMaps[t], color: new Color(0.78, 0.79, 0.82) }))
+      const innerMat = new MeshBasicMaterial({ map: innerMaps[t], color: new Color(0.78, 0.79, 0.82) })
+      if (REFRACTION === 'custom') patchInnerDepth(innerMat)
+      const inner = new Mesh(innerGeos[t], innerMat)
       inner.name = `inner${t + 1}`
       inner.renderOrder = 10
       if (REFRACTION === 'custom') {
@@ -247,6 +253,7 @@ export class CrystalsScene extends BaseScene {
     this.shapes.visible = !a
     const tint = a ? this.look.tintA : this.look.tintB
     this.ice.uIceTint.value.setRGB(tint[0], tint[1], tint[2])
+    this.ice.uIceBack.value = a ? 1 : 0
     for (const c of this.crystals) {
       c.labels.visible = !a && c.labelsOn
       c.plexus.visible = !a && c.plexusOn
@@ -282,7 +289,19 @@ export class CrystalsScene extends BaseScene {
     this.ice.uIceMilk.value = l.milk
     this.ice.uIceJitter.value = l.jitter
     this.ice.uIceLodBias.value = l.lodBias
-    for (const c of this.crystals) c.material.envMapIntensity = l.envIntensity
+    this.ice.uIceAbsorb.value.fromArray(l.absorb)
+    this.ice.uIceDensity.value = l.density
+    this.ice.uIceDeepColor.value.set(l.deep)
+    this.ice.uIceThickMax.value = l.thickMax
+    this.ice.uIceEdge.value = l.edge
+    this.ice.uIceBackShade.value = l.backShade
+    for (const c of this.crystals) {
+      c.material.envMapIntensity = l.envIntensity
+      if (c.material.isCrystalMaterial) {
+        c.material.clearcoat = l.clearcoat
+        c.material.clearcoatRoughness = l.coatRough
+      }
+    }
   }
 
   /** Ganti parameter grade live (tuning palet). */

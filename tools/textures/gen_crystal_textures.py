@@ -2,8 +2,9 @@
 
 Pakai:  python tools/textures/gen_crystal_textures.py
 Output di public/assets/textures/:
-  crystals_env.hdr           512x256  Radiance RGBE (RLE). Langit mendung abu, satu titik matahari terang
-                                      (puncak sekitar 3100) di atas belakang kamera, sorotan lembut di bawah.
+  crystals_env.hdr           512x256  Radiance RGBE (RLE). Langit mendung abu (zenit gelap, horizon terang),
+                                      satu titik matahari terang (puncak sekitar 3100) di atas belakang kamera,
+                                      sorotan lembut di bawah, plus 4 softbox dingin untuk kilap garis di facet.
   dot_pattern.png             64      satu titik putih kecil di pojok tile (grid titik latar, di-tile 45x)
   blurrytext_atlas.png       512      8 baris teks mono yang sudah di-blur (blur di-bake, tanpa blur pass)
   blurrytext_atlas.json               kotak UV tiap baris + rasio aspek, dibaca CrystalsScene
@@ -87,28 +88,53 @@ def env_hdr():
         a = np.array([-x, y, -z], float)
         return a / np.linalg.norm(a)
 
+    # arah dunia tiap piksel (kebalikan from_world): azimut 0 = +z dunia (di belakang kamera), elevasi = asin(y)
+    wx, wy, wz = -d[..., 0], d[..., 1], -d[..., 2]
+    az = np.degrees(np.arctan2(wx, wz))
+    el = np.degrees(np.arcsin(np.clip(wy, -1, 1)))
+
     up = np.clip(d[..., 1], -1, 1)
-    sky = np.array([0.80, 0.85, 0.95])
-    ground = np.array([0.30, 0.31, 0.34])
-    t = np.clip(up, 0, 1) ** 0.55
-    col = np.where(up[..., None] > 0, (0.72 + 0.3 * t[..., None]) * sky, ground * (1 + 0.6 * up[..., None]))
+    # Okt 2026: langit lebih gelap di zenit dan tanah lebih gelap, supaya pantulan di facet es punya kontras
+    # (env lama hampir rata terang, kilap clearcoat cuma memutihkan es di depan latar pucat)
+    zenith = np.array([0.36, 0.40, 0.48])
+    horizon = np.array([0.80, 0.85, 0.95])
+    ground = np.array([0.16, 0.17, 0.20])
+    t = np.clip(up, 0, 1) ** 0.45
+    sky = horizon[None, None] * (1 - t[..., None]) + zenith[None, None] * t[..., None]
+    col = np.where(up[..., None] > 0, sky, ground * (1 + 0.8 * up[..., None]))
     # awan halus (variasi 10 persen) supaya pantulan tidak terlalu rata
     yy, xx = np.mgrid[0:H, 0:W]
     cloud = 0.5 * np.sin(xx * 0.05 + np.sin(yy * 0.09) * 2) + 0.5 * np.sin(yy * 0.07 + np.cos(xx * 0.031) * 3)
     col *= (1 + 0.08 * cloud)[..., None]
-    # pita horizon sedikit lebih terang (kabut)
-    col += (0.18 * np.exp(-(up / 0.08) ** 2))[..., None] * sky
+    # pita horizon terang (kabut), paling terang di belakang kristal: tepi kristal yang miring memantulkannya
+    behind = 0.5 + 0.5 * np.cos(np.radians(az - 180))
+    col += (0.35 * (0.4 + 0.6 * behind) * np.exp(-(up / 0.07) ** 2))[..., None] * horizon
 
     def lobe(dirw, power, width_deg):
         s = from_world(*dirw)
         ang = np.degrees(np.arccos(np.clip(d @ s, -1, 1)))
         return power * np.exp(-(ang / width_deg) ** 2)
 
+    def box(az0, az1, el0, el1, soft):
+        """Softbox persegi di azimut [az0, az1] dan elevasi [el0, el1] derajat, tepi lembut selebar soft."""
+        a = ((az - az0 + 180) % 360) - 180
+        span = ((az1 - az0 + 180) % 360) - 180
+        fa = np.clip(np.minimum(a, span - a) / soft + 0.5, 0, 1)
+        fe = np.clip(np.minimum(el - el0, el1 - el) / soft + 0.5, 0, 1)
+        return (fa * fe) ** 2
+
     sun_w = (-0.35, 0.65, 0.68)
     sun = lobe(sun_w, 3200, 0.9) + lobe(sun_w, 22, 5) + lobe(sun_w, 2.0, 22)
     col += sun[..., None] * np.array([1.0, 0.97, 0.92])
     below = lobe((0.3, -0.42, 0.85), 5.0, 14) + lobe((0.3, -0.42, 0.85), 0.8, 35)
     col += below[..., None] * np.array([0.85, 0.9, 1.0])
+    # tiga softbox dingin = kilap garis tajam di facet (clearcoat), bergeser saat kristal berputar
+    cold = np.array([0.92, 0.96, 1.0])
+    strips = (5.0 * box(-55, 40, 24, 33, 3)      # panel lebar miring di atas belakang kamera
+              + 4.0 * box(-82, -74, -8, 58, 2.5)  # strip tegak kiri
+              + 3.0 * box(96, 104, -4, 46, 2.5)   # strip tegak kanan agak ke belakang kristal
+              + 2.5 * box(150, 215, 8, 14, 3))    # panel tipis di belakang kristal (kilap tepi atas)
+    col += strips[..., None] * cold
     path = os.path.join(OUT, 'crystals_env.hdr')
     write_hdr(path, col.astype(np.float32))
     print('crystals_env.hdr', col.shape, 'maks %.0f' % col.max(), 'rata2 %.3f' % col.mean(),
@@ -248,6 +274,10 @@ def shapes_blurred():
 
 
 if __name__ == '__main__':
+    import sys
+    if sys.argv[1:] == ['env']:  # cuma env, tekstur lain tidak ditulis ulang
+        env_hdr()
+        sys.exit()
     env_hdr()
     dot_pattern()
     blurry_text()
