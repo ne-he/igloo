@@ -9,17 +9,43 @@
       html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #a0a5b1; touch-action: none; }
       #app { position: fixed; inset: 0; }
       #app canvas { display: block; width: 100%; height: 100%; }
-      #loader { position: fixed; inset: 0; display: grid; place-items: center; background: #a0a5b1; color: #fff;
-        font: 700 17px/1 ui-monospace, 'IBM Plex Mono', monospace; letter-spacing: 0.04em; transition: opacity 0.75s; z-index: 2; }
+      /* IglooPlexMono = Plex Mono Medium yang didaftarkan LoaderProgress.js setelah termuat, sebelumnya monospace sistem.
+         Glow tipis meniru bloom, ikut dipakai pesan error yang menimpa isi #loader. */
+      #loader { position: fixed; inset: 0; display: grid; place-items: center; background: #a0a5b1; color: #fff; overflow: hidden;
+        font: 500 17px/1 'IglooPlexMono', 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.04em;
+        text-shadow: 0 0 6px rgba(255, 255, 255, 0.55); transition: opacity 0.75s; z-index: 2; }
       #loader.hidden { opacity: 0; pointer-events: none; }
-      /* bar ASCII progress (src/engine/LoaderProgress.js), glow tipis meniru bloom */
-      #loader-bar { white-space: pre; text-shadow: 0 0 6px rgba(255, 255, 255, 0.55); }
+      /* loader dekripsi nama (src/engine/LoaderProgress.js). Slot lebar tetap (em) supaya ganti karakter atau font
+         tidak menggeser apa pun. .lg = glyph slot, .lc = kolom glyph yang jatuh (Web Animations), .hot = baru
+         mendarat, .on = huruf final terkunci. */
+      #loader-box { display: grid; justify-items: center; gap: 1.5em; }
+      #loader-name { display: flex; font-size: clamp(15px, 5.6vw, 28px); letter-spacing: 0; text-shadow: 0 0 0.35em rgba(255, 255, 255, 0.55); }
+      /* contain layout: ganti glyph cuma me-layout slot itu sendiri (loader jalan saat main thread sibuk compile).
+         Tanpa contain paint, kolom hujan memang keluar dari kotak slot. */
+      #loader-name .ls { position: relative; width: 0.8em; height: 1.25em; line-height: 1.25em; text-align: center; contain: layout style; }
+      #loader-name .lg { display: block; font-weight: inherit; opacity: 0.32; }
+      #loader-name .hot .lg, #loader-name .on .lg { opacity: 1; }
+      #loader-name .on .lg { animation: loader-lock 0.45s cubic-bezier(0.2, 0.7, 0.3, 1); }
+      #loader-name .lc { position: absolute; left: 0; right: 0; bottom: 0; white-space: pre; font-style: normal; opacity: 0;
+        pointer-events: none; -webkit-mask-image: linear-gradient(transparent, #000 85%); mask-image: linear-gradient(transparent, #000 85%); }
+      #loader-pct { font-size: 11px; letter-spacing: 0.35em; padding-left: 0.35em; opacity: 0.7; }
+      @keyframes loader-lock { from { transform: translateY(-0.14em) scale(1.2); } to { transform: none; } }
+      @media (prefers-reduced-motion: reduce) {
+        #loader-name .lg { transition: opacity 0.5s; }
+        #loader-name .on .lg { animation: none; }
+      }
       .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     </style>
   </head>
   <body>
     <div id="app" aria-label="Interactive 3D scene"></div>
-    <div id="loader" aria-hidden="true"><span id="loader-bar">+----------------------- 000</span></div>
+    <!-- frame statis sebelum bundle jalan: 18 slot berisi glyph acak redup, dibangun ulang identik oleh LoaderProgress.js -->
+    <div id="loader" aria-hidden="true">
+      <div id="loader-box">
+        <div id="loader-name"><span class="ls"><b class="lg">#</b></span><span class="ls"><b class="lg">%</b></span><span class="ls"><b class="lg">&amp;</b></span><span class="ls"><b class="lg">*</b></span><span class="ls"><b class="lg">/</b></span><span class="ls"><b class="lg">&lt;</b></span><span class="ls"><b class="lg">&gt;</b></span><span class="ls"><b class="lg">{</b></span><span class="ls"></span><span class="ls"><b class="lg">}</b></span><span class="ls"><b class="lg">[</b></span><span class="ls"><b class="lg">]</b></span><span class="ls"><b class="lg">0</b></span><span class="ls"><b class="lg">1</b></span><span class="ls"><b class="lg">=</b></span><span class="ls"><b class="lg">+</b></span><span class="ls"><b class="lg">$</b></span><span class="ls"><b class="lg">@</b></span></div>
+        <div id="loader-pct">000</div>
+      </div>
+    </div>
     <main class="sr-only" id="a11y"></main>
     <script type="module" src="/src/main.js"></script>
   </body>

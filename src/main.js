@@ -17,8 +17,8 @@ import content from './content/content.js'
 const IGLOO_REST_N = 0.658 // progress igloo 0.495
 
 const loaderEl = document.getElementById('loader')
-// Bar ASCII dipasang paling awal supaya semua muatan aset ikut terhitung
-const loader = new LoaderProgress(document.getElementById('loader-bar') || loaderEl)
+// Loader dekripsi nama dipasang paling awal supaya semua muatan aset ikut terhitung
+const loader = new LoaderProgress(loaderEl)
 
 async function boot() {
   const engine = new Engine(document.getElementById('app'), SECTIONS)
@@ -52,10 +52,12 @@ async function boot() {
   // Audio (M8): mute sampai gesture pertama + tombol Sound On. File diunduh di belakang setelah loader hilang.
   const audio = (engine.audio = new AudioManager(engine))
   engine.start()
-  loader.finish(loaderEl)
+  // Loader menahan nama utuh sebentar sebelum pudar: intro baru diputar saat pudar dimulai (detik 0 tidak
+  // habis di balik loader). Kalau intro sudah diselesaikan duluan (handle debug), jangan diputar ulang.
+  const fading = loader.finish(loaderEl)
   setTimeout(() => audio.prefetch(), 1500)
   if (skip) intro.skip()
-  else intro.play()
+  else fading.then(() => intro.running && intro.play())
 
   // Router mikro (blueprint 6.6): '/' dan '/portfolio/:slug'. Deep link membuka detail langsung (intro sudah
   // dilewati shouldSkipIntro). Semua ini jalan sebelum frame pertama (ticker baru berdetak di rAF berikutnya).
