@@ -15,6 +15,10 @@ import { IntroDigits } from './IntroDigits.js'
 // displacement + pantulan tanah per bata ditulis ke DataTexture yang dibaca shader.
 
 export const BLUE = new Vector3(0.5, 0.7, 1.0)
+// Hover fakta (BrickFacts.js): bata yang di-hover melayang sedikit lebih jauh dari tetangganya.
+// push = tambahan displacement radial (ikut menyalakan emisi biru di shader), rise = naik dalam unit dunia,
+// bob = ayunan naik turun pelan, lerp = faktor per frame 60 fps (dua tahap, jadi masuk dan keluarnya halus).
+export const HOVER_LIFT = { push: 0.07, rise: 0.14, bob: 0.025, lerp: 0.09 }
 const sineIn = (t) => 1 - Math.cos((t * Math.PI) / 2)
 
 /**
@@ -164,6 +168,7 @@ export class Bricks {
     this.options.magFilter = this.options.minFilter = NearestFilter
     this.options.needsUpdate = true
     this.breath = { value: 1 } // modulator napas, 0 -> 1 saat intro (blueprint 6.5 detik 2.0)
+    this.hovered = -1 // indeks bata yang sedang di-hover (diisi BrickFacts), -1 = tidak ada
 
     this.material = new ShaderMaterial({
       uniforms: {
@@ -194,8 +199,13 @@ export class Bricks {
     for (const b of bricks) {
       b.id = mesh.addGeometry(b.geometry)
       b.d1 = b.d2 = b.b1 = b.b2 = 0
+      b.h1 = b.h2 = 0 // angkat hover, dua tahap lerp
+      b.hold = null // dorongan yang ditahan selama di-hover
       b.disp = 0
       b.position = b.centroid.clone()
+      // posisi tanpa angkat hover + rotasi, dipakai raycast BrickFacts (bata yang naik tidak lari dari kursor)
+      b.basePosition = b.centroid.clone()
+      b.quaternion = new Quaternion()
       b.anchor = b.centroid.clone()
       _m.makeTranslation(b.centroid)
       mesh.setMatrixAt(b.id, _m)
@@ -224,26 +234,44 @@ export class Bricks {
       const breathe = 0.4 * (Math.sin(-2 * T + c.x) * 0.5 + 0.5) * (Math.cos(-T) * 0.5 + 0.5) * lerp(0.5, 2, r.z) * 0.5 * this.breath.value
       const wobble = Math.sin(T + r.x * 6.2832)
       const near = fit(smoothstep(1, 3, c.distanceTo(mouse)), 0, 1, 0.5 + 0.3 * wobble, 0)
-      const target = Math.max(breathe, near * rest) * smoothstep(0.45, 0.7, c.y)
+      let target = Math.max(breathe, near * rest) * smoothstep(0.45, 0.7, c.y)
       const bounce = near * rest
+      const hover = b.index === this.hovered ? 1 : 0
+      // bata yang di-hover menahan dorongan mouse di nilai saat hover mulai (tidak ikut wobble), jadi ia
+      // melayang di tempat di bawah kursor. Lepas hover = kembali ke dinamika normal lewat lerp yang sama.
+      if (hover) {
+        if (b.hold === null) b.hold = b.d2
+        target = b.hold
+      } else {
+        b.hold = null
+      }
       if (snap) {
         b.d1 = b.d2 = target
         b.b1 = b.b2 = bounce
+        b.h1 = b.h2 = hover
       } else {
         b.d1 = lerpFPS(b.d1, target, 0.06, ratio)
         b.d2 = lerpFPS(b.d2, b.d1, 0.06, ratio)
         b.b1 = lerpFPS(b.b1, bounce, 0.05, ratio)
         b.b2 = lerpFPS(b.b2, b.b1, 0.05, ratio)
+        b.h1 = lerpFPS(b.h1, hover, HOVER_LIFT.lerp, ratio)
+        b.h2 = lerpFPS(b.h2, b.h1, HOVER_LIFT.lerp, ratio)
       }
       const sd = scroll * (0.3 + 0.2 * clamp(c.y, 0, 4)) * lerp(0.5, 1.5, r.y)
-      const d = b.d2 + sd
+      const d0 = b.d2 + sd
+      const h = b.h2
+      const d = d0 + HOVER_LIFT.push * h
       b.disp = d
+      b.basePosition.copy(c).multiplyScalar(1 + d0)
       b.position.copy(c).multiplyScalar(1 + d)
+      if (h > 1e-4) b.position.y += h * (HOVER_LIFT.rise + HOVER_LIFT.bob * Math.sin(2 * T + r.x * 6.2832))
       // jangkar plexus: sedikit keluar dari permukaan bata
       b.anchor.copy(c).normalize().multiplyScalar(0.2).add(b.position)
-      const k = d * 0.8
+      // rotasi tidak ikut angkat hover: bata naik lurus, tidak berputar lebih
+      const k = d0 * 0.8
       _e.set((r.x - 0.5) * k, (r.y - 0.5) * k, (r.z - 0.5) * k)
       _q.setFromEuler(_e)
+      b.quaternion.copy(_q)
       _m.compose(b.position, _q, _one)
       this.mesh.setMatrixAt(b.id, _m)
       data[b.id * 4] = d

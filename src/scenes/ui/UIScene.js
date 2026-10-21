@@ -10,6 +10,7 @@ import { MsdfText } from '../../text/MsdfText.js'
 import { layoutText } from '../../text/layout.js'
 import { glyphTableTexture } from '../../text/textMaterial.js'
 import { computeUILayout, UI_RATIOS, UI_BREAKPOINTS } from './layout.js'
+import { FactLabel } from './FactLabel.js'
 import content from '../../content/content.js'
 
 // Scene UI (blueprint 4.1 dan 5.6): kamera orthographic dalam piksel CSS, origin kiri atas.
@@ -106,6 +107,11 @@ export class UIScene extends Scene {
     this.speaker.frustumCulled = false
     this.add(this.speaker)
 
+    // Label fakta bata igloo (src/scenes/igloo/BrickFacts.js memancarkan 'igloo_fact' saat hover/tap bata)
+    this.factLabel = new FactLabel(f)
+    this.add(this.factLabel)
+    bus.on('igloo_fact', (target) => this.factLabel.setTarget(target))
+
     this.writeA11y()
     bus.on('resize', ({ width, height }) => this.resize(width, height))
     bus.on('ui_intro', () => this.intro())
@@ -127,7 +133,9 @@ export class UIScene extends Scene {
     for (const m of this.blocks) m.uniforms.uShow1.value = 1
     const closeVis = [this.texts.close.visible, this.closeFrame.visible]
     this.texts.close.visible = this.closeFrame.visible = true
+    this.factLabel.forceVisible(true)
     await renderer.compileAsync(this, this.camera)
+    this.factLabel.forceVisible(false)
     this.texts.close.visible = closeVis[0]
     this.closeFrame.visible = closeVis[1]
     renderer.initTexture(this.font.texture)
@@ -162,6 +170,12 @@ export class UIScene extends Scene {
     place(t.sound, L.sound)
     this._layoutClose(width)
     this._layoutSound()
+    this.factLabel.resize(width, height, L.sound.size)
+    // label fakta igloo tidak boleh menutup blok teks UI (kotak teks + 10 px)
+    this.factLabel.avoid = [t.logo, t.copyrightTitle, t.copyrightText, t.hint, t.sound].map((m) => {
+      const bx = m.box
+      return { x0: m.position.x + bx.x - 10, y0: -(m.position.y + bx.y) - 10, x1: m.position.x + bx.x + bx.width + 10, y1: -(m.position.y + bx.y - bx.height) + 10 }
+    })
   }
 
   /** Kotak klik tombol Sound (teks + ikon) dan geometri ikon speaker, piksel CSS y ke bawah. */
@@ -313,6 +327,8 @@ export class UIScene extends Scene {
     const ss = this.texts.sound.uniforms.uShow1.value
     this.speaker.material.opacity = ss >= 1 ? 1 : ss * (0.85 + 0.15 * Math.sin(ss * 30))
     this.speaker.visible = ss > 0
+    // label fakta bata: posisi diproyeksikan dari kamera igloo yang sudah dirender frame ini
+    this.factLabel.update(Math.min(0.1, (frame.delta || 16.667) / 1000), !this.detailMode)
     if (!this.introStarted || this.detailMode) return
     // Hint hilang setelah scroll sekitar 0.59 unit dari posisi awal, muncul lagi kalau kembali
     // (jarak dihitung melingkar karena scroll berulang tiap 10.85).

@@ -62,12 +62,14 @@ export class IntroTimeline {
     // 1.75: angka intro memudar, disembunyikan di 3.75
     ft(c.digitsAlpha, 1, 0, { duration: 2 }, 1.75)
     show(c.digits, false, 3.75)
-    // 2.0: parallax, outline pudar, napas bata, asap + salju, kamera turun dari atas (introWeight)
+    // 0.8 / 1.2: badai duluan (tambahan sendiri, asli di detik 2): salju + goresan angin lalu kabut dan asap
+    // sudah bertiup saat igloo mulai dibangun, jadi dunia muncul dari tengah badai, bukan dari udara diam
+    ft(c.snowAlpha, 0, 1, { duration: 3 }, 0.8)
+    ft(c.smokeAlpha, 0, 1, { duration: 3 }, 1.2)
+    // 2.0: parallax, outline pudar, napas bata, kamera turun dari atas (introWeight)
     ft(c.touchAmount, 0, 1, { duration: 5 }, 2)
     ft(c.outlineAlpha, 1, 0, { duration: 3, ease: 'inOut4' }, 2)
     ft(c.breath, 0, 1, { duration: 2, ease: 'none' }, 2)
-    ft(c.smokeAlpha, 0, 1, { duration: 3 }, 2)
-    ft(c.snowAlpha, 0, 1, { duration: 4 }, 2)
     ft(c.introWeight, 0, 1, { duration: 5.5, ease: 'inOut1' }, 2)
     // 2.1: cage pudar, disembunyikan di 5.1
     ft(c.cageAlpha, 0.4, 0, { duration: 3 }, 2.1)

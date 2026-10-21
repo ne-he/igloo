@@ -4,11 +4,21 @@ import { BaseScene } from '../../engine/BaseScene.js'
 import { makeLutTexture, LutMaterial } from '../../grade/Lut.js'
 import { createSky, SKY } from './look.js'
 import { IglooHero, getIglooIntroControls } from './Bricks.js'
+import { BrickFacts } from './BrickFacts.js'
+import { iglooFacts } from '../../content/content.js'
 import { createGround, createTerrain, createPatches, createMountains, createSnow, createSmoke, MousePoint, getValleyIntroUniforms } from './valley.js'
+import { createFarGround, createMist, createWindStreaks } from './valley.js'
 
 // Kamera intro (blueprint 6.4): dari atas (-14, 21, 14) menatap (0, 0.5, 0), dibaurkan ke jalur timeline lewat introWeight.
 const INTRO_POSITION = new Vector3(-14, 21, 14)
 const INTRO_TARGET = new Vector3(0, 0.5, 0)
+// Mundur jauh saat scroll ke kristal (tambahan sendiri, jalur asli hanya mundur ~8 unit): mulai tepat setelah
+// titik istirahat (detik 10.4 dari 21 = p 0.495), ease sine.out jadi tarikan terbesar terasa di awal scroll,
+// sebelum transisi menutup layar. Kamera naik dan mundur searah jalur asli, target sedikit naik dan menjauh
+// supaya cakrawala dan pegunungan masuk bingkai. Hasil di p 1: kamera sekitar 70 unit dari igloo.
+const PULL_START = 10.4
+const PULL_POS = new Vector3(-29, 10, 30)
+const PULL_TARGET = new Vector3(3, 1.6, -6)
 const _pos = new Vector3()
 const _target = new Vector3()
 
@@ -48,16 +58,23 @@ export class IglooScene extends BaseScene {
     this.snow = createSnow(g)
     this.smoke = smoke
     this.add(ground, terrain, patches, mountains, smoke, this.snow)
+    // dunia luas + cuaca (tambahan sendiri): tanah jauh sampai cakrawala, kabut rendah, asap melayang,
+    // selubung kabut depan kamera (ikut alpha asap intro), goresan angin (ikut alpha salju intro)
+    const [farGround, mist] = await Promise.all([createFarGround(g), createMist(g, smoke.children[0].material.uniforms.uAlpha)])
+    this.add(farGround, mist, createWindStreaks(g, this.snow.material.uniforms.uAlpha))
     this.igloo = await iglooReady
     this.add(this.igloo)
+    // hover/tap bata = fakta pendek (BrickFacts.js), labelnya digambar scene UI
+    this.facts = new BrickFacts({ engine, bricks: this.igloo.bricks, facts: iglooFacts, camera: this.camera })
 
     this.lut = makeLutTexture(IGLOO_GRADE)
     this.grade = this.composer.addPass(new LutMaterial(this.lut, { gradientAlpha: 1 }))
 
-    this.cam = { px: -13.25, py: 11.5, pz: 13.25, ty: 15 }
+    this.cam = { px: -13.25, py: 11.5, pz: 13.25, ty: 15, pull: 0 }
     this.timeline = gsap.timeline({ paused: true })
       .to(this.cam, { py: 2.5, ty: 1, duration: 14, ease: 'power2.out' }, 0)
       .to(this.cam, { px: -15.25, pz: 23.25, duration: 14, ease: 'power1.inOut' }, 7)
+      .to(this.cam, { pull: 1, duration: 21 - PULL_START, ease: 'sine.out' }, PULL_START)
   }
 
   /**
@@ -89,12 +106,17 @@ export class IglooScene extends BaseScene {
   update(frame) {
     const { input, ratio } = frame
     this.timeline.progress(this.progress)
-    _pos.set(this.cam.px, this.cam.py, this.cam.pz)
-    _target.set(0, this.cam.ty, 0)
+    _pos.set(this.cam.px, this.cam.py, this.cam.pz).addScaledVector(PULL_POS, this.cam.pull)
+    _target.set(0, this.cam.ty, 0).addScaledVector(PULL_TARGET, this.cam.pull)
     const w = this.introWeight
     this.camera.basePosition.copy(INTRO_POSITION).lerp(_pos, w)
     this.camera.baseTarget.copy(INTRO_TARGET).lerp(_target, w)
     this.mouse.update(this.camera, input.position11, ratio)
     this.igloo.update(frame, this.progress, this.camera)
+    this.facts?.update(frame, this.progress)
+  }
+
+  onHide() {
+    this.facts?.clear()
   }
 }

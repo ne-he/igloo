@@ -137,3 +137,23 @@ export default {
 
   // Data link ruang partikel yang dipakai ada di src/content/links.js.
 }
+
+// Fakta pendek yang muncul saat bata igloo di-hover (src/scenes/igloo/BrickFacts.js). Semua dari kata-kata
+// Nehemiah sendiri atau profil yang sudah diverifikasi, jangan tambah fakta karangan (L9). Bebas diubah urutan
+// dan isinya, pembagian ke 70 bata dihitung ulang otomatis (bata bertetangga selalu dapat fakta berbeda).
+// ASCII saja, atlas font tidak punya simbol lain. Pendek (maks sekitar 24 huruf) supaya label tetap satu baris.
+export const iglooFacts = [
+  'BINUSIAN 2028',
+  'INDONESIAN',
+  'DATA SCIENCE',
+  'BASED IN JAKARTA',
+  'FULL MERIT SCHOLARSHIP',
+  'BINUS AMBASSADOR',
+  'IELTS 6.5',
+  'LEARNING MANDARIN',
+  'GYM: PUSH / PULL / LEGS',
+  'STORYTELLING COACH',
+  'BLENDER + THREE.JS',
+  '12+ LIVE DEMOS SHIPPED',
+  'DATAHEIST 2025 ML COMP',
+]

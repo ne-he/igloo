@@ -50,19 +50,19 @@ const FOG_GLSL = /* glsl */ `
   }
 `
 
-/** Noise JS kecil untuk displacement gunung (deterministik). */
+/** Noise JS kecil untuk displacement gunung dan tanah jauh (deterministik). */
 function hash(x, y) {
   const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453
   return s - Math.floor(s)
 }
-function vnoise(x, y) {
+export function vnoise(x, y) {
   const xi = Math.floor(x), yi = Math.floor(y)
   const xf = x - xi, yf = y - yi
   const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf)
   const a = hash(xi, yi), b = hash(xi + 1, yi), c = hash(xi, yi + 1), d = hash(xi + 1, yi + 1)
   return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v
 }
-function ridged(x, y) {
+export function ridged(x, y) {
   let v = 0, amp = 0.5, f = 1
   for (let i = 0; i < 6; i++) {
     const n = 1 - Math.abs(vnoise(x * f, y * f) * 2 - 1)
@@ -71,6 +71,17 @@ function ridged(x, y) {
     amp *= 0.5
   }
   return v
+}
+/** fbm value noise 0..1 (perbukitan lembut tanah jauh). */
+export function fbmJS(x, y, octaves = 5) {
+  let v = 0, amp = 0.5, f = 1, tot = 0
+  for (let i = 0; i < octaves; i++) {
+    v += vnoise(x * f + i * 17.1, y * f - i * 9.7) * amp
+    tot += amp
+    f *= 2.03
+    amp *= 0.5
+  }
+  return v / tot
 }
 
 /** Gunung prosedural (pengganti aset Blender sampai M2): bidang terdisplace ridged noise + kabut langit. */
