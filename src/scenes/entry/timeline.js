@@ -1,4 +1,5 @@
 import gsap from 'gsap'
+import { lerpFPS, smoothstep } from '../../engine/math.js'
 
 // Timeline kamera scene entry (skill ref 01 bagian 4.2, blueprint 5.5). Total 9.2 s, di-scrub oleh progress scene:
 // detik timeline = progress * 9.2. Data murni + gsap, tanpa three, supaya gampang dicek.
@@ -101,6 +102,74 @@ export function buildCameraTimeline(state) {
 
 export function initialCameraState() {
   return { px: 0, py: CAM_Y0, pz: -2, tx: 0, ty: -2.5, tz: -1, fov: 22, upRotation: 0, upOriginal: 0, dx: 0.01, dy: 0.005 }
+}
+
+// Damping kamera entry per frame 60 Hz (data asli lerp posisi 0.02, target 0.015), sekarang dipakai di ruang
+// timeline (progress), bukan di ruang 3D. Lihat CameraFollow.
+export const CAMERA_SMOOTH = { position: 0.02, target: 0.015 }
+// Jendela pemusat cincin: offset lateral kamera ditekan ke 0 saat |y kamera - y cincin| di bawah inner,
+// pulih penuh di atas outer (unit dunia). Lubang cincin r 0.27. Di |dy| 0.6 frustum (fov sekitar 26) di bidang
+// cincin cuma selebar sekitar 0.2, jadi cincin sudah aman. Jendela lebih lebar (0.9) membuat z mengejar jalur
+// lebih mendadak sesudah cincin 3 (laju lateral puncak 1.6x jalur tanpa pemusat, jendela ini 1.4x).
+export const RING_CENTER = { inner: 0.1, outer: 0.6 }
+
+/**
+ * Bobot offset lateral (x, z) kamera: 0 tepat di bidang cincin, 1 jauh dari semua cincin.
+ * Jalur timeline sendiri sudah di poros untuk cincin 1 dan 2, tapi z mulai mundur (-> -1.5) di detik 3.5,
+ * jadi di cincin 3 (detik 4.28) jalurnya sudah z -0.13. Bobot ini memaksa kamera lewat poros persis.
+ */
+export function ringCenterWeight(y, { inner, outer } = RING_CENTER) {
+  let w = 1
+  for (const ry of RING_Y) w = Math.min(w, smoothstep(inner, outer, Math.abs(y - ry)))
+  return w
+}
+
+/**
+ * Kamera entry mengikuti jalur timeline di progress yang DIHALUSKAN (bukan me-lerp posisi 3D).
+ * Dulu BaseCamera me-lerp posisi 3D 0.02 per frame ke titik timeline. Saat scroll cepat titik itu sudah jauh
+ * di depan di jalur melengkung (z -2 -> 0 sambil menukik, lalu z mundur lagi), kamera yang tertinggal memotong
+ * tikungan lurus dan menembus dinding cincin (diukur tools/verify/entry_portal.py: offset 0.6 sampai 1.1 di
+ * scroll cepat, lubang cuma 0.27). Sekarang yang di-lerp progress-nya dengan faktor yang sama, lalu jalur
+ * dievaluasi di progress itu: lag dan rasanya sama di kecepatan normal, tapi kamera tidak pernah keluar jalur.
+ * Murni (tanpa three), state ditulis ke objek angka biasa supaya bisa dites.
+ */
+export class CameraFollow {
+  constructor() {
+    this.posState = initialCameraState()
+    this.targetState = initialCameraState()
+    this.posTimeline = buildCameraTimeline(this.posState)
+    this.targetTimeline = buildCameraTimeline(this.targetState)
+    this.pPosition = 0 // progress kamera sebenarnya (dipakai juga untuk elemen portal)
+    this.pTarget = 0
+    this.position = { x: 0, y: CAM_Y0, z: -2 }
+    this.target = { x: 0, y: -2.5, z: -1 }
+  }
+
+  /**
+   * @param {number} p progress scene mentah
+   * @param {number} ratio delta / 16.67 ms
+   * @param {boolean} snap true = lompat langsung (scene baru terlihat)
+   */
+  update(p, ratio, snap = false) {
+    if (snap) {
+      this.pPosition = this.pTarget = p
+    } else {
+      this.pPosition = lerpFPS(this.pPosition, p, CAMERA_SMOOTH.position, ratio)
+      this.pTarget = lerpFPS(this.pTarget, p, CAMERA_SMOOTH.target, ratio)
+    }
+    this.posTimeline.progress(this.pPosition)
+    this.targetTimeline.progress(this.pTarget)
+    const s = this.posState
+    const w = ringCenterWeight(s.py)
+    this.position.x = s.px * w
+    this.position.y = s.py
+    this.position.z = s.pz * w
+    const t = this.targetState
+    this.target.x = t.tx
+    this.target.y = t.ty
+    this.target.z = t.tz
+    return this
+  }
 }
 
 /**

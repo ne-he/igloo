@@ -8,7 +8,7 @@ import { MsdfFont } from '../../text/MsdfFont.js'
 import links from '../../content/links.js'
 import {
   TIMELINE_DURATION, RING_Y, RING_HIDE, FORCEFIELD_Y, FORCEFIELD_WINDOWS, TUNNEL_HIDE,
-  buildCameraTimeline, initialCameraState, ringProximity, windowShow,
+  buildCameraTimeline, initialCameraState, ringProximity, windowShow, CameraFollow, CAMERA_SMOOTH,
 } from './timeline.js'
 import { createRings, createForcefields, createPlasma, createSmokeTrails, flipForGltf } from './Rings.js'
 import { createTunnel, createCeilingSmoke, createGroundSmoke } from './Smoke.js'
@@ -44,8 +44,11 @@ export class EntryScene extends BaseScene {
     super(section, { fov: 22 })
     this.background = new Color('#a9b0be')
     this.camera.displacement.set(0.01, 0.005)
-    this.camera.lerpPosition = 0.02
-    this.camera.lerpTarget = 0.015
+    // posisi dan target dihaluskan di ruang timeline (CameraFollow), bukan di 3D: BaseCamera tidak me-lerp lagi,
+    // hanya parallax mouse yang tetap di-damp 0.02 seperti sebelumnya
+    this.camera.lerpPosition = 1
+    this.camera.lerpTarget = 1
+    this.camera.lerpOrbit = CAMERA_SMOOTH.position
     this.camera.shake = 0.02
     this.camera.shakeSpeed = 0.25
     this.camera.zoomFactor = 1.5
@@ -145,6 +148,7 @@ export class EntryScene extends BaseScene {
     // ---- kamera + grade ----
     this.cam = initialCameraState()
     this.timeline = buildCameraTimeline(this.cam)
+    this.follow = new CameraFollow()
     this.post = this.composer.addPass(new EntryPostMaterial(g, { blueNoise: blue, mask }))
   }
 
@@ -183,6 +187,10 @@ export class EntryScene extends BaseScene {
     this.particles.setVolume(this.volumes[this.linkIndex], link.scale)
     pu.uRotation.value = 1.5 * PI
     gsap.fromTo(pu.uAdditionalNoise, { value: 1 }, { value: 0, duration: 0.5, ease: 'power2.inOut', overwrite: true })
+    // titik tujuan (tambahan kita, Particles.js PARTICLES.assign): partikel ditarik ke titik bentuk baru yang
+    // terdekat dengan posisi awalnya, supaya tidak cuma mewarisi jejak bentuk lama (bagian di luar jejak bolong)
+    const asg = this.particles.assign
+    gsap.fromTo(pu.uAssign, { value: asg.amount }, { value: 0, duration: asg.duration, ease: 'sine.inOut', overwrite: true })
     // lantai: additionalTime += 4 x -dir dalam 3 s power4.out (target dikumpulkan supaya ganti beruntun tidak hilang)
     this._floorTarget += 4 * -dir
     gsap.to(this.floorTime, { additional: this._floorTarget, duration: 3, ease: 'power4.out', overwrite: true })
@@ -214,8 +222,14 @@ export class EntryScene extends BaseScene {
     this.timeline.progress(p)
     const c = this.cam
     const cam = this.camera
-    cam.basePosition.set(c.px, c.py, c.pz)
-    cam.baseTarget.set(c.tx, c.ty, c.tz)
+    // kamera = jalur timeline di progress yang dihaluskan (lihat CameraFollow), selalu lewat poros cincin
+    const f = this.follow.update(p, ratio, cam.snapping)
+    cam.basePosition.set(f.position.x, f.position.y, f.position.z)
+    cam.baseTarget.set(f.target.x, f.target.y, f.target.z)
+    // elemen portal (cincin, forcefield, terowongan, glitch) ikut progress kamera, bukan progress scroll:
+    // saat scroll cepat kamera tertinggal, jadi cincin tidak boleh hilang sebelum kamera benar-benar lewat
+    const pc = f.pPosition
+    const tc = pc * TIMELINE_DURATION
     // up awal (0,0,-1) diputar di sumbu Y, lalu dibaurkan ke +Y (pandangan horizontal di ruang)
     _up.set(-Math.sin(c.upRotation), 0, -Math.cos(c.upRotation))
     cam.baseUp.copy(_up).lerp(_plusY, c.upOriginal).normalize()
@@ -228,7 +242,7 @@ export class EntryScene extends BaseScene {
 
     // ---- portal ----
     this.rings.forEach((ring, i) => {
-      const vis = p < RING_HIDE[i]
+      const vis = pc < RING_HIDE[i]
       ring.visible = vis
       this.plasma[i].visible = vis
       this.trails[i].visible = vis
@@ -242,18 +256,18 @@ export class EntryScene extends BaseScene {
       this.trails[i].rotation.y = i * PI * 0.5 + c.upRotation * 0.5 + 0.7
     })
     // forcefield: jendela tampil asli, pudar saat kamera masih jauh dari poros (z), lubang membesar saat dekat
-    const zFade = 1 - smoothstep(0.6, 1.4, Math.abs(c.pz))
+    const zFade = 1 - smoothstep(0.6, 1.4, Math.abs(eye.z))
     this.forcefields.forEach((ff, i) => {
       const [a, b] = FORCEFIELD_WINDOWS[i]
-      const show = windowShow(p, a, b) * zFade
+      const show = windowShow(pc, a, b) * zFade
       ff.visible = show > 0.001
       ff.material.uniforms.uShow.value = show
-      const d = Math.abs(c.py - FORCEFIELD_Y[i])
+      const d = Math.abs(eye.y - FORCEFIELD_Y[i])
       ff.material.uniforms.uHole.value = 0.12 + (1 - smoothstep(0.2, 2.6, d)) * 0.95
     })
-    this.tunnel.visible = p < TUNNEL_HIDE
-    this.tunnel.material.uniforms.uShow.value = 1 - smoothstep(TUNNEL_HIDE - 0.05, TUNNEL_HIDE, p)
-    this.snow.visible = p < 0.62
+    this.tunnel.visible = pc < TUNNEL_HIDE
+    this.tunnel.material.uniforms.uShow.value = 1 - smoothstep(TUNNEL_HIDE - 0.05, TUNNEL_HIDE, pc)
+    this.snow.visible = pc < 0.62
 
     // ---- ruang: muncul saat kamera turun ke ruang ----
     const room = smoothstep(0.45, 0.62, p)
@@ -302,7 +316,7 @@ export class EntryScene extends BaseScene {
     this.linksUI.update({ progress: p, allowed: this.active && !detailOpen, ratio })
 
     // ---- grade ----
-    const prox = this.debug.proximity ?? ringProximity(t)
+    const prox = this.debug.proximity ?? ringProximity(tc)
     const u = this.post.uniforms
     u.uRingProximity.value = prox
     u.uBlueOffset.value.set(Math.random(), Math.random())

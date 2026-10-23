@@ -21,6 +21,9 @@ export class BaseCamera extends PerspectiveCamera {
     this.displacement = new Vector2(0, 0) // parallax maks (x, y) dalam satuan PI/2
     this.lerpPosition = 0.035
     this.lerpTarget = 0.035
+    // damping parallax mouse (orbit). null = ikut lerpPosition (perilaku semua scene). Entry memisahkannya karena
+    // posisinya dihaluskan di ruang timeline (lerpPosition 1) tapi parallax tetap harus halus.
+    this.lerpOrbit = null
     this.shake = 0 // radian
     this.shakeSpeed = 0
     this.touchAmount = 1
@@ -37,6 +40,11 @@ export class BaseCamera extends PerspectiveCamera {
     this._needsSnap = true
   }
 
+  /** true kalau frame ini akan lompat (scene baru terlihat / setScroll debug). Dibaca scene sebelum update kamera. */
+  get snapping() {
+    return this._needsSnap
+  }
+
   resize(aspect) {
     this.aspect = aspect
     this.zoom = Math.min(1, aspect * this.zoomFactor)
@@ -45,10 +53,11 @@ export class BaseCamera extends PerspectiveCamera {
 
   update(pointer11, time, ratio) {
     const k = 1 - Math.pow(1 - this.lerpPosition, ratio)
+    const kOrbit = this.lerpOrbit == null ? k : 1 - Math.pow(1 - this.lerpOrbit, ratio)
     const theta = pointer11.x * (Math.PI / 2) * this.displacement.x * this.touchAmount
     const phi = pointer11.y * (Math.PI / 2) * this.displacement.y * this.touchAmount
-    this._theta = this._needsSnap ? theta : lerp(this._theta, theta, k)
-    this._phi = this._needsSnap ? phi : lerp(this._phi, phi, k)
+    this._theta = this._needsSnap ? theta : lerp(this._theta, theta, kOrbit)
+    this._phi = this._needsSnap ? phi : lerp(this._phi, phi, kOrbit)
 
     // Orbit basePosition di sekitar baseTarget.
     _offset.subVectors(this.basePosition, this.baseTarget)

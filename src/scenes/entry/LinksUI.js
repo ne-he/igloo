@@ -96,6 +96,39 @@ export class LinksUI extends Group {
 
     this._bind()
     this.resize(engine.container.clientWidth, engine.container.clientHeight)
+    this.writeA11y()
+  }
+
+  /**
+   * Cermin DOM tersembunyi (pembaca layar, keyboard, SEO): daftar link sungguhan di section sendiri dalam
+   * <main id="a11y">, karena carousel di canvas tidak bisa difokus. Urutan sama dengan carousel.
+   */
+  writeA11y() {
+    if (typeof document === 'undefined') return
+    const main = document.getElementById('a11y')
+    if (!main) return
+    let sec = main.querySelector('section[data-entry-links]')
+    if (!sec) {
+      sec = document.createElement('section')
+      sec.dataset.entryLinks = ''
+      main.append(sec)
+    }
+    const h = document.createElement('h2')
+    h.textContent = 'Links'
+    const ul = document.createElement('ul')
+    for (const link of this.links) {
+      const li = document.createElement('li')
+      const a = document.createElement('a')
+      a.href = link.url
+      a.textContent = link.title
+      if (!link.url.startsWith('mailto:')) {
+        a.target = '_blank'
+        a.rel = 'noopener'
+      }
+      li.append(a)
+      ul.append(li)
+    }
+    sec.replaceChildren(h, ul)
   }
 
   /** Tempel mesh ke kamera yang sedang merender: matrixWorld = kamera x HUD x lokal. */

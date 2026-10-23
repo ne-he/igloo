@@ -55,6 +55,20 @@ export const PARTICLES = {
   presimFrames: 120,
   presimRatio: 3,
   minStepMs: 15, // throttle sim
+  // titik tujuan saat ganti link (tambahan kita, 19 Okt 2026). Data asli: partikel cuma ditarik ke permukaan
+  // TERDEKAT dari posisinya sekarang, jadi bentuk baru mewarisi sebaran bentuk lama. Bagian bentuk baru di luar
+  // jejak bentuk lama nyaris tidak kebagian partikel (batang "i" LinkedIn sesudah emblem GitHub yang sempit,
+  // pinggir cakram GitHub sesudah avatar, sisi cincin WhatsApp) dan pegas asli 0.001 butuh belasan detik untuk
+  // meratakannya. Sesudah ganti link, tiap partikel ditarik (kekuatan assign per frame 60 Hz, turun ke 0 dalam
+  // assignDuration detik) ke titik permukaan yang terdekat dengan posisi awalnya. Hasilnya morf langsung dari
+  // bentuk lama ke bentuk baru dengan sebaran yang sama seperti bentuk itu dibentuk dari awan awal.
+  assign: 0.008, // dipilih lewat cakupan muka saat berputar: 0.004 masih 35% bolong di detik 1 (GitHub)
+  assignDuration: 1.5,
+  // posisi awal ikut berputar (tambahan kita, 19 Okt 2026). Data asli: posisi awal diam di dunia sementara SDF
+  // berputar 0.75 rad/s. Dilihat dari bentuk, target pegas itu berputar terus, rata-ratanya jatuh di sumbu
+  // putar, jadi partikel kulit pelan-pelan terseret ke tengah dan bagian bentuk yang jauh dari sumbu (sisi
+  // cincin WhatsApp, pinggir lempeng LinkedIn) kosong. Dengan target ikut berputar, sebaran tetap rata.
+  spinTargets: true,
 }
 
 /**
@@ -184,6 +198,8 @@ uniform float uAdditionalNoise;
 uniform float uShowNoise;
 uniform float uFluidOn;
 uniform float uFluidGain;
+uniform float uAssign;
+uniform float uSpinTargets;
 uniform mat4 uMVP;
 uniform vec3 uCamRight;
 uniform vec3 uCamUp;
@@ -238,7 +254,25 @@ void main() {
   v += cn * (0.0002 * (0.7 + 0.3 * rnd) + 0.0004 * max(uAdditionalNoise, uShowNoise)) * uRatio;
 
   // ---- pegas ke posisi awal (kabut kubus tipis) ----
-  v += (O.xyz - p) * 0.001 * invFluid * uRatio;
+  // uSpinTargets (tambahan kita, lihat PARTICLES.spinTargets): posisi awal ikut berputar bersama bentuk
+  vec3 home = uSpinTargets > 0.5 ? vec3(cs * O.x - sn * O.z, O.y, sn * O.x + cs * O.z) : O.xyz;
+  v += (home - p) * 0.001 * invFluid * uRatio;
+  // ---- titik tujuan sesudah ganti link (tambahan kita, lihat PARTICLES.assign) ----
+  // tiap partikel ditarik ke titik permukaan bentuk baru yang terdekat dengan POSISI AWAL-nya (bukan posisi
+  // sekarang), jadi sebaran di bentuk baru tidak mewarisi jejak bentuk lama. Posisi awal di dalam bentuk = diam.
+  if (uAssign > 0.0) {
+    vec3 lh = vec3(cs * home.x + sn * home.z, home.y, -sn * home.x + cs * home.z);
+    vec3 qh = lh / uCube * uVolumeScale + 0.5;
+    vec4 sh = texture(tVolume, qh);
+    float dh = (sh.a * 2.0 - 1.0) * 2.0;
+    vec3 gh = sh.rgb * 2.0 - 1.0;
+    vec3 obh = max(abs(qh - 0.5) - 0.5, 0.0);
+    if (length(obh) > 0.0) { dh += length(obh); gh = qh - 0.5; }
+    gh = length(gh) > 1e-5 ? normalize(gh) : vec3(0.0);
+    gh = vec3(cs * gh.x - sn * gh.z, gh.y, sn * gh.x + cs * gh.z);
+    vec3 target = dh > 0.0 ? home - gh * dh * uCube / uVolumeScale : home;
+    v += (target - p) * uAssign * uRatio;
+  }
 
   // ---- tarik ke permukaan kalau di luar SDF, di dalam bebas (bentuk terisi) ----
   if (d > 0.0) v -= g * 0.0015 * (0.7 + 0.3 * rnd) * 0.6 * invFluid * uRatio;
@@ -390,6 +424,8 @@ export class VolumeParticles {
         // [?] Satuan kecepatan fluid igloo tidak tercatat. Fluid kita fisik (tinggi layar per detik, sapuan cepat
         // sekitar 1), dengan angka asli 0.0005 dorongannya nyaris tak terlihat. Gain 8 dikalibrasi ke ref 16.
         uFluidGain: { value: 8 },
+        uAssign: { value: 0 },
+        uSpinTargets: { value: PARTICLES.spinTargets ? 1 : 0 },
         uMVP: { value: new Matrix4() },
         uCamRight: { value: new Vector3(1, 0, 0) },
         uCamUp: { value: new Vector3(0, 1, 0) },
@@ -405,6 +441,8 @@ export class VolumeParticles {
     })
     this.quad = new FullScreenQuad(this.initMat)
     this.uniforms = this.simMat.uniforms
+    // titik tujuan saat ganti link (bisa ditimpa script verifikasi lewat entry.particles.assign)
+    this.assign = { amount: PARTICLES.assign, duration: PARTICLES.assignDuration }
     this.simTime = 0
     this.stats = { presimMs: 0, presimCompileMs: 0, steps: 0 }
 

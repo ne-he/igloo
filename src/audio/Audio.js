@@ -256,7 +256,8 @@ export class AudioManager {
     t.music = MIX.music
     t.wind = MIX.wind * windVolume(igloo?.progress ?? 0) * iglooOn * sceneMix
     t.room = (MIX.roomBed + MIX.roomPlexus * plexusActivity(igloo) * iglooOn) * (0.5 + 0.5 * sceneMix)
-    t.portals = MIX.portals * portalVolume(entry?.progress ?? 0) * entryOn * sceneMix
+    // pakai progress kamera (CameraFollow), bukan progress scroll mentah, supaya bunyi cincin pas saat kamera lewat
+    t.portals = MIX.portals * portalVolume(entry?.follow?.pPosition ?? entry?.progress ?? 0) * entryOn * sceneMix
     t.particles = MIX.particles * (this.params.particles ?? 0) * entryOn * sceneMix
 
     this._watchLabels(scenes.crystals)
