@@ -1,4 +1,6 @@
-# igloo study
+# Nemi's Igloo
+
+Live: https://igloo-nemi.vercel.app
 
 A real-time WebGL study of how award-winning scroll sites are built, made with vanilla three.js and my own assets. It is a personal experiment, inspired by [igloo.inc](https://www.igloo.inc) by abeto x Bureaux. No code, shaders, models, textures or audio from that site are used here. Everything was written, modelled, baked or synthesized for this project.
 
