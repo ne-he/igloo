@@ -49,6 +49,10 @@ export const PARTICLES = {
   sizeTune: 1.8,
   light: new Vector3(-0.75, 1, -0.1),
   rotationSpeed: 0.75, // rad/s, uRotation turun terus
+  // Sesudah ganti link bentuk mulai agak menyamping (pov kanan) lalu berputar masuk, dan tepat menghadap depan
+  // setelah sekian detik, kira-kira saat partikel sudah rapi dan orang mulai memperhatikan (permintaan 24 Okt 2026).
+  // igloo asli mulai dari depan (0), jadi bentuk keburu menyamping ke kiri waktu baru kelihatan.
+  frontDelay: 1.4,
   // Pre-sim sebelum pertama tampil. igloo: 1 detik. Bentuk kita (tabung tipis, rongga) baru rapi sesudah sekitar
   // 2 detik (screenshot m7b_n9.500 dengan 1 detik masih berkabut di tengah), jadi 2 detik disimulasikan dengan
   // langkah besar: 40 langkah x ratio 3 (= 120 frame 60 Hz). Biaya GPU sama dengan 40 langkah biasa.

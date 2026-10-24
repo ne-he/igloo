@@ -185,7 +185,8 @@ export class EntryScene extends BaseScene {
     const link = links[this.linkIndex]
     const pu = this.particles.uniforms
     this.particles.setVolume(this.volumes[this.linkIndex], link.scale)
-    pu.uRotation.value = 1.5 * PI
+    // mulai dari pov kanan, menghadap depan setelah PARTICLES.frontDelay detik
+    pu.uRotation.value = 1.5 * PI + PARTICLES.rotationSpeed * PARTICLES.frontDelay
     gsap.fromTo(pu.uAdditionalNoise, { value: 1 }, { value: 0, duration: 0.5, ease: 'power2.inOut', overwrite: true })
     // titik tujuan (tambahan kita, Particles.js PARTICLES.assign): partikel ditarik ke titik bentuk baru yang
     // terdekat dengan posisi awalnya, supaya tidak cuma mewarisi jejak bentuk lama (bagian di luar jejak bolong)
