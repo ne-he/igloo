@@ -98,7 +98,8 @@ def pick_targets(page, count):
     all_ = page.evaluate(TARGETS_JS)
     W = page.viewport_size['width']
     H = page.viewport_size['height']
-    ok = [t for t in all_ if t['hit'] == t['i'] and 40 < t['x'] < W - 40 and 40 < t['y'] < H - 40]
+    # cuma bata yang punya fakta (24 Okt 2026: tiap fakta di satu bata saja, bata lain tanpa label)
+    ok = [t for t in all_ if t['fact'] and t['hit'] == t['i'] and 40 < t['x'] < W - 40 and 40 < t['y'] < H - 40]
     ok.sort(key=lambda t: t['x'])
     chosen = []
     used = set()
@@ -118,6 +119,11 @@ def hover_rest(page, args, report):
     page.evaluate('__igloo.setScroll(0.658)')
     page.mouse.move(args.width * 0.9, args.height * 0.12)
     page.wait_for_timeout(800)
+    facts_all = [t['fact'] for t in page.evaluate(TARGETS_JS) if t['fact']]
+    unique = len(facts_all) == len(set(facts_all))
+    print(f"fakta per bata: {len(facts_all)} bata berfakta, {len(set(facts_all))} unik -> {'OK' if unique else 'GAGAL (ada dobel)'}")
+    if not unique:
+        report['ok'] = False
     targets, n_front = pick_targets(page, args.count)
     print(f'bata depan yang bisa di-hover: {n_front}, dipilih {len(targets)}')
     for t in targets:

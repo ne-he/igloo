@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { assignFacts, brickNeighbors } from '../src/scenes/igloo/facts.js'
+import { assignUniqueFacts } from '../src/scenes/igloo/facts.js'
 import { factLabelLayout, FACT_LABEL } from '../src/scenes/ui/FactLabel.js'
 import { iglooFacts } from '../src/content/content.js'
 
@@ -20,47 +20,53 @@ function dome() {
 }
 
 describe('fakta bata igloo', () => {
-  it('daftar fakta: 13 item, ASCII cetak saja, pendek, tidak ada duplikat', () => {
-    expect(iglooFacts.length).toBe(13)
+  // kamera titik istirahat (BrickFacts FACTS.restCamera)
+  const view = { x: -13.49, y: 2.65, z: 14.43 }
+
+  it('daftar fakta: ASCII cetak saja, pendek, tidak ada duplikat, tanpa IELTS', () => {
+    expect(iglooFacts.length).toBeGreaterThanOrEqual(8)
     expect(new Set(iglooFacts).size).toBe(iglooFacts.length)
     for (const f of iglooFacts) {
-      expect(f).toMatch(/^[\x20-\x7e]+$/)
+      expect(f).toMatch(/^[ -~]+$/)
       expect(f.length).toBeLessThanOrEqual(24)
     }
+    expect(iglooFacts.some((f) => f.includes('IELTS'))).toBe(false)
   })
 
-  it('tetangga simetris dan tidak memuat diri sendiri', () => {
+  it('tiap fakta tepat di satu bata, sisanya tanpa fakta', () => {
     const pts = dome()
-    const nb = brickNeighbors(pts, 6)
-    nb.forEach((list, i) => {
-      expect(list).not.toContain(i)
-      expect(list.length).toBeGreaterThanOrEqual(6)
-      for (const j of list) expect(nb[j]).toContain(i)
-    })
+    const out = assignUniqueFacts(pts, iglooFacts.length, view)
+    const used = out.filter((f) => f >= 0)
+    expect(used.length).toBe(iglooFacts.length)
+    expect(new Set(used).size).toBe(iglooFacts.length)
+    expect(out.filter((f) => f < 0).length).toBe(pts.length - iglooFacts.length)
   })
 
-  it('70 bata: semua dapat fakta, tetangga selalu beda, semua fakta terpakai rata', () => {
+  it('bata berfakta menghadap kamera dan tersebar (tidak bergerombol)', () => {
     const pts = dome()
-    expect(pts.length).toBe(70)
-    const out = assignFacts(pts, iglooFacts.length)
-    const nb = brickNeighbors(pts, 6)
-    out.forEach((f, i) => {
-      expect(f).toBeGreaterThanOrEqual(0)
-      expect(f).toBeLessThan(iglooFacts.length)
-      for (const j of nb[i]) expect(out[j]).not.toBe(f)
-    })
-    const counts = new Array(iglooFacts.length).fill(0)
-    for (const f of out) counts[f]++
-    expect(Math.min(...counts)).toBeGreaterThanOrEqual(4) // 70 / 13 = 5.4
-    expect(Math.max(...counts)).toBeLessThanOrEqual(7)
+    const out = assignUniqueFacts(pts, iglooFacts.length, view)
+    const chosen = pts.filter((_, i) => out[i] >= 0)
+    const len = Math.hypot(view.x, view.z)
+    for (const p of chosen) {
+      // sisi kubah yang menghadap kamera (bidang datar)
+      expect((p.x * view.x + p.z * view.z) / len).toBeGreaterThan(-0.5)
+    }
+    let minGap = Infinity
+    for (let i = 0; i < chosen.length; i++) {
+      for (let j = i + 1; j < chosen.length; j++) {
+        const d = Math.hypot(chosen[i].x - chosen[j].x, chosen[i].y - chosen[j].y, chosen[i].z - chosen[j].z)
+        minGap = Math.min(minGap, d)
+      }
+    }
+    expect(minGap).toBeGreaterThan(0.6)
   })
 
-  it('deterministik dan aman untuk daftar kosong / fakta lebih sedikit dari tetangga', () => {
+  it('deterministik dan aman untuk daftar kosong / fakta lebih banyak dari kandidat', () => {
     const pts = dome()
-    expect(assignFacts(pts, 13)).toEqual(assignFacts(pts, 13))
-    expect(assignFacts(pts, 0).every((f) => f === -1)).toBe(true)
-    const two = assignFacts(pts, 2)
-    expect(two.every((f) => f === 0 || f === 1)).toBe(true)
+    expect(assignUniqueFacts(pts, 12, view)).toEqual(assignUniqueFacts(pts, 12, view))
+    expect(assignUniqueFacts(pts, 0, view).every((f) => f === -1)).toBe(true)
+    const many = assignUniqueFacts(pts, 60, view).filter((f) => f >= 0)
+    expect(new Set(many).size).toBe(60)
   })
 })
 

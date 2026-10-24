@@ -4,11 +4,12 @@
 // Judul tampil lewat atlas MSDF yang cuma berisi ASCII cetak, jadi judul harus ASCII.
 //
 // Link asli Nehemiah (17 Okt 2026). WhatsApp (19 Okt 2026) sama dengan kontak di situs ICEBERG miliknya
-// (icev2/src/content.js, CONTACT.whatsapp). Link pertama = dirinya sendiri (avatar), ke situs CV utama.
+// (icev2/src/content.js, CONTACT.whatsapp). Link pertama = dirinya sendiri (avatar). Visit-nya membuka situs ini
+// lagi dari awal (24 Okt 2026), url relatif '/' supaya ikut domain apa pun tempat situs ini di-deploy.
 const links = [
   {
     title: 'Nehemiah',
-    url: 'https://ice-nemi.vercel.app',
+    url: '/',
     volume: 'nehemiah_64',
     scale: 1.15,
   },

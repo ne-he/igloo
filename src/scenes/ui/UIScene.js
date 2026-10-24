@@ -69,12 +69,15 @@ export class UIScene extends Scene {
     const c = content
     const t = this.texts
     t.logo = new MsdfText(f, { text: c.brand.name, color: COLOR_TEXT, bold: LOGO_BOLD, seed: 11 })
-    t.copyrightTitle = new MsdfText(f, { text: c.copyright.title, color: COLOR_TITLE, seed: 12 })
-    t.copyrightText = new MsdfText(f, { text: c.copyright.text, color: COLOR_TEXT, seed: 13 })
+    // copyright opsional: content.copyright = null berarti pojok kiri cuma wordmark
+    if (c.copyright) {
+      t.copyrightTitle = new MsdfText(f, { text: c.copyright.title, color: COLOR_TITLE, seed: 12 })
+      t.copyrightText = new MsdfText(f, { text: c.copyright.text, color: COLOR_TEXT, seed: 13 })
+    }
     t.hint = new MsdfText(f, { text: c.ui.scrollHint, color: COLOR_TEXT, seed: 14 })
     t.sound = new MsdfText(f, { text: soundLabel(false), color: COLOR_TEXT, seed: 15 })
     t.close = new MsdfText(f, { text: c.ui.close || 'Close', color: COLOR_TEXT, seed: 16 })
-    this.blocks = [t.logo, t.copyrightTitle, t.copyrightText, t.hint, t.sound]
+    this.blocks = [t.logo, t.copyrightTitle, t.copyrightText, t.hint, t.sound].filter(Boolean)
     for (const [name, mesh] of Object.entries(t)) {
       mesh.name = `ui_${name}`
       mesh.uniforms.uShow1.value = 0
@@ -164,15 +167,15 @@ export class UIScene extends Scene {
       mesh.position.set(spec.x, -spec.baseline, 0)
     }
     place(t.logo, L.logo, { letterSpacing: L.logo.letterSpacing })
-    place(t.copyrightTitle, L.copyrightTitle)
-    place(t.copyrightText, L.copyrightText)
+    if (t.copyrightTitle) place(t.copyrightTitle, L.copyrightTitle)
+    if (t.copyrightText) place(t.copyrightText, L.copyrightText)
     place(t.hint, L.hint)
     place(t.sound, L.sound)
     this._layoutClose(width)
     this._layoutSound()
     this.factLabel.resize(width, height, L.sound.size)
     // label fakta igloo tidak boleh menutup blok teks UI (kotak teks + 10 px)
-    this.factLabel.avoid = [t.logo, t.copyrightTitle, t.copyrightText, t.hint, t.sound].map((m) => {
+    this.factLabel.avoid = this.blocks.map((m) => {
       const bx = m.box
       return { x0: m.position.x + bx.x - 10, y0: -(m.position.y + bx.y) - 10, x1: m.position.x + bx.x + bx.width + 10, y1: -(m.position.y + bx.y - bx.height) + 10 }
     })
@@ -284,7 +287,7 @@ export class UIScene extends Scene {
     if (on === this.detailMode) return
     this.detailMode = on
     const t = this.texts
-    const hideable = [t.copyrightTitle, t.copyrightText, t.hint]
+    const hideable = [t.copyrightTitle, t.copyrightText, t.hint].filter(Boolean)
     const close = t.close
     if (on) {
       for (const m of hideable) fadeOut(m, instant)
@@ -309,8 +312,8 @@ export class UIScene extends Scene {
       // copyright kembali, hint diurus update() (muncul lagi hanya kalau dekat posisi awal)
       if (this.introStarted) {
         const tl = gsap.timeline()
-        reveal(tl, t.copyrightTitle, 0)
-        reveal(tl, t.copyrightText, BLOCK_STAGGER)
+        if (t.copyrightTitle) reveal(tl, t.copyrightTitle, 0)
+        if (t.copyrightText) reveal(tl, t.copyrightText, BLOCK_STAGGER)
       }
     }
   }
@@ -399,8 +402,10 @@ export class UIScene extends Scene {
       sec.append(el)
     }
     add('h1', content.brand.name)
-    add('p', content.copyright.title)
-    add('p', content.copyright.text.replace(/\n/g, ' '))
+    if (content.copyright) {
+      add('p', content.copyright.title)
+      add('p', content.copyright.text.replace(/\n/g, ' '))
+    }
     add('p', content.ui.scrollHint)
     // tombol sungguhan untuk keyboard dan pembaca layar (canvas tidak bisa difokus)
     const btn = document.createElement('button')

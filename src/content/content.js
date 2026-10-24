@@ -8,12 +8,9 @@ export default {
     logoSvg: null, // [?] belum ada logo, sementara wordmark MSDF dari font
   },
 
-  // Di igloo, copyright dan manifesto hidup di dalam scene igloo (kena LUT + transisi).
-  // Sementara copyright ditaruh di UIScene, lihat src/scenes/ui/UIScene.js.
-  copyright: {
-    title: '// Copyright © 2026',
-    text: 'NEMI.\nAll Rights Reserved.',
-  },
+  // Pojok kiri cuma wordmark NEMI (permintaan Nehemiah 24 Okt 2026). Isi lagi { title, text } kalau baris
+  // copyright mau dimunculkan kembali, UIScene melewatinya kalau null.
+  copyright: null,
 
   ui: {
     scrollHint: 'Scroll down to discover.',
@@ -139,9 +136,10 @@ export default {
 }
 
 // Fakta pendek yang muncul saat bata igloo di-hover (src/scenes/igloo/BrickFacts.js). Semua dari kata-kata
-// Nehemiah sendiri atau profil yang sudah diverifikasi, jangan tambah fakta karangan (L9). Bebas diubah urutan
-// dan isinya, pembagian ke 70 bata dihitung ulang otomatis (bata bertetangga selalu dapat fakta berbeda).
-// ASCII saja, atlas font tidak punya simbol lain. Pendek (maks sekitar 24 huruf) supaya label tetap satu baris.
+// Nehemiah sendiri atau profil yang sudah diverifikasi, jangan tambah fakta karangan (L9). Isinya yang
+// menggambarkan siapa dia saja (24 Okt 2026: IELTS dan DataHeist dibuang). Tiap fakta cuma muncul di SATU bata,
+// dipilih dari bata yang menghadap kamera titik istirahat dan disebar rata (facts.js). Bata lain tetap melayang
+// saat di-hover, tanpa label. ASCII saja, atlas font tidak punya simbol lain. Maks sekitar 24 huruf.
 export const iglooFacts = [
   'BINUSIAN 2028',
   'INDONESIAN',
@@ -149,11 +147,10 @@ export const iglooFacts = [
   'BASED IN JAKARTA',
   'FULL MERIT SCHOLARSHIP',
   'BINUS AMBASSADOR',
-  'IELTS 6.5',
+  'FUTURE AI / ML ENGINEER',
+  '12+ LIVE DEMOS SHIPPED',
+  'BLENDER + THREE.JS',
+  'STORYTELLING COACH',
   'LEARNING MANDARIN',
   'GYM: PUSH / PULL / LEGS',
-  'STORYTELLING COACH',
-  'BLENDER + THREE.JS',
-  '12+ LIVE DEMOS SHIPPED',
-  'DATAHEIST 2025 ML COMP',
 ]

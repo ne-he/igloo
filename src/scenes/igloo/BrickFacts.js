@@ -1,7 +1,7 @@
 import { Raycaster, Vector2, Vector3, Matrix4, Ray, Sphere, DoubleSide } from 'three'
 import { MeshBVH } from 'three-mesh-bvh'
 import { bus } from '../../engine/Bus.js'
-import { assignFacts } from './facts.js'
+import { assignUniqueFacts } from './facts.js'
 
 // Fakta di bata igloo: hover (mouse) atau tap (sentuh) satu bata, bata itu melayang sedikit (Bricks.hovered,
 // HOVER_LIFT) dan label MSDF pendek muncul di scene UI (src/scenes/ui/FactLabel.js).
@@ -25,7 +25,7 @@ export const FACTS = {
   moveWindow: 0.15,
   nearRadius: 1.6,
   tapHold: 4, // detik, label hasil tap di layar sentuh bertahan selama ini
-  neighbors: 6, // k tetangga terdekat untuk pembagian fakta
+  restCamera: [-13.49, 2.65, 14.43], // posisi kamera di titik istirahat (IglooScene), bata berfakta dipilih yang menghadap ke sini
 }
 
 const _ray = new Ray()
@@ -60,7 +60,10 @@ export class BrickFacts {
     this._pointerInside = true
 
     const list = bricks.bricks
-    this.assignment = assignFacts(list.map((b) => b.centroid), this.facts.length, { k: FACTS.neighbors })
+    bricks.mesh.updateWorldMatrix(true, false)
+    const world = bricks.mesh.matrixWorld
+    const [vx, vy, vz] = FACTS.restCamera
+    this.assignment = assignUniqueFacts(list.map((b) => b.centroid.clone().applyMatrix4(world)), this.facts.length, { x: vx, y: vy, z: vz })
     for (const b of list) b.bvh = new MeshBVH(b.geometry, { indirect: true })
 
     bus.on('pointer_move', (input) => {
@@ -179,8 +182,14 @@ export class BrickFacts {
       bus.emit('igloo_fact', null)
       return
     }
+    // bata tanpa fakta tetap melayang (bricks.hovered), tapi tanpa label dan tanpa bunyi
+    const text = this.factOf(index)
+    if (!text) {
+      bus.emit('igloo_fact', null)
+      return
+    }
     const b = this.bricks.bricks[index]
-    bus.emit('igloo_fact', { index, text: this.factOf(index), anchor: b.anchor, camera: this.camera })
+    bus.emit('igloo_fact', { index, text, anchor: b.anchor, camera: this.camera })
     // bunyi label muncul, sama dengan label kristal (Audio.js menjaga jeda minimal antar beep)
     bus.emit('audio_play', { name: 'beeps' })
   }
