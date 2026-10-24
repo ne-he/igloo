@@ -13,9 +13,21 @@ export default {
   copyright: null,
 
   ui: {
-    scrollHint: 'Scroll down to discover.',
+    scrollHint: 'Scroll down to discover.', // hint lama, sekarang cuma di salinan DOM a11y
+    // cue scroll tengah bawah (ScrollCue.js), versi sentuh dan versi sesudah semua fakta igloo ketemu. ASCII saja.
+    scrollCue: 'SCROLL TO ENTER',
+    scrollCueTouch: 'SWIPE UP TO ENTER',
+    scrollCueDone: 'ALL FOUND. NOW SCROLL',
+    scrollCueDoneTouch: 'ALL FOUND. NOW SWIPE UP',
+    // indeks section kanan bawah (SectionIndex.js), urutan sama dengan SECTIONS di sections.js
+    sections: ['IGLOO', 'WORK', 'LINKS'],
+    sectionsLabel: 'Sections', // aria-label navigasi a11y
     sound: { label: 'Sound:', on: 'On', off: 'Off' },
     close: 'Close', // tombol tutup detail proyek (M6)
+    // kartu fakta bata igloo ('FACT 03/12') dan penghitung ('FOUND 3/12'), {total} = jumlah iglooFacts
+    facts: { header: 'FACT', found: 'FOUND', complete: 'ALL {total} FOUND' },
+    // label kristal: tombol buka detail + ajakan saat pengunjung diam (ASCII saja, atlas font)
+    crystal: { open: '[ OPEN ]', nudge: 'CLICK THE ICE', nudgeTouch: 'TAP THE ICE' },
   },
 
   manifesto: {

@@ -13,6 +13,8 @@ import { MeshPhysicalMaterial, Color, Vector2, Vector3, DataTexture, RGBAFormat,
 //   dapat tebal es asli per piksel, lalu menyerap cahaya ala Beer-Lambert (merah paling cepat habis,
 //   jadi bagian tebal condong biru tua). Dinding miring digelapkan (pantul total), di pass A ini
 //   membuat facet bagian dalam terbaca. Clearcoat tipis memberi kilap tajam di tiap facet.
+// Ajakan klik (Okt 2026): uIceGlow per kristal (0..1, hover / tombol / ajakan) menambah kilau rim fresnel
+//   + angkat terang tipis di pass B saja, bentuk dan warnanya dari ICE_LOOK (glowColor, glowRim, glowGain, glowLift).
 
 /** Tekstur 4x4 warna datar untuk pass A. Ukuran sampler 4 -> lod maksimal kecil, nyaris tanpa blur. */
 export function makeFlatTexture(hex = '#A6ABB7') {
@@ -79,6 +81,8 @@ export function makeIceUniforms({ flat, blueNoise, triangles, resolution }) {
     uIceThickMax: { value: 2.5 },
     uIceEdge: { value: 0.7 }, // gelap di dinding depan yang miring (pantul total di dalam)
     uIceBackShade: { value: 0.6 }, // gelap di dinding belakang yang miring (pass A)
+    uIceGlowColor: { value: new Color('#dfeaff') },
+    uIceGlowShape: { value: new Vector3(3, 0.75, 0.05) }, // (pangkat rim, kuat rim, angkat rata)
   }
 }
 
@@ -113,6 +117,9 @@ uniform vec3 uIceDeepColor;
 uniform float uIceThickMax;
 uniform float uIceEdge;
 uniform float uIceBackShade;
+uniform float uIceGlow;
+uniform vec3 uIceGlowColor;
+uniform vec3 uIceGlowShape;
 uniform mat4 modelMatrix;
 uniform mat4 projectionMatrix;
 varying vec3 vIceWorld;
@@ -158,6 +165,13 @@ const FROST_EMISSIVE = /* glsl */ `
     float iceTri = texture2D(tTriangles, vNormalMapUv * triScale).r;
     totalEmissiveRadiance += iceRim * uColorFrost + iceTri * iceRim * 10.0 * uFrostTri
       + iceTri * iceFrost * iceFrost * uFrostTri * uColorFrost;
+  }
+  // kilau hover / ajakan: rim fresnel dari normal geometri (tanpa normal map, tepi bersih) + angkat rata.
+  // Hanya pass B, kalau ikut pass A kilau ini terbias dua kali.
+  if (uIceBack < 0.5 && uIceGlow > 0.001) {
+    float iceNdv = abs(dot(nonPerturbedNormal, normalize(vViewPosition)));
+    float iceGlowRim = pow(1.0 - iceNdv, uIceGlowShape.x);
+    totalEmissiveRadiance += uIceGlow * uIceGlowColor * (uIceGlowShape.y * iceGlowRim + uIceGlowShape.z);
   }
 `
 
@@ -253,8 +267,8 @@ export class CrystalMaterial extends MeshPhysicalMaterial {
     this.envMapRotation.set(0, Math.PI, 0)
     this.isCrystalMaterial = true
     this.ice = ice
-    // uniform per kristal: tekstur hasil sim frost kristal ini
-    this.frost = { tMouseFrost: { value: frost || emptyFrostTexture() } }
+    // uniform per kristal: tekstur hasil sim frost kristal ini + kilau hover / ajakan (0..1)
+    this.frost = { tMouseFrost: { value: frost || emptyFrostTexture() }, uIceGlow: { value: 0 } }
     this.samples = samples
     this.defines = { ...this.defines, ICE_SAMPLES: samples }
   }
