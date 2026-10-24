@@ -19,6 +19,11 @@ export const BLUE = new Vector3(0.5, 0.7, 1.0)
 // push = tambahan displacement radial (ikut menyalakan emisi biru di shader), rise = naik dalam unit dunia,
 // bob = ayunan naik turun pelan, lerp = faktor per frame 60 fps (dua tahap, jadi masuk dan keluarnya halus).
 export const HOVER_LIFT = { push: 0.07, rise: 0.14, bob: 0.025, lerp: 0.09 }
+// Kilau petunjuk fakta (BrickFacts.js + facts.js Glimmer): bata menyala biru dari dalam lewat jalur emisi yang sama
+// dengan emisi saat bata bergeser. push = dorongan radial kecil (celah bata terbuka, sisi dalam yang terang terlihat),
+// inner = penguat emisi muka dalam (_emission kuadrat), face = rona biru tipis di muka luar supaya terbaca dari depan,
+// cool = muka bata digeser ke dingin (merah dan hijau diturunkan) supaya terbaca biru, bukan sekadar lebih terang.
+export const GLIMMER_GLOW = { push: 0.035, inner: 2.5, face: 0.3, cool: 1.2 }
 const sineIn = (t) => 1 - Math.cos((t * Math.PI) / 2)
 
 /**
@@ -93,13 +98,13 @@ const VERT = /* glsl */ `
   varying vec2 vUv;
   varying vec3 vWorld;
   varying float vEmission;
-  varying vec2 vOpt;
+  varying vec3 vOpt;
   void main() {
     #include <batching_vertex>
     vec4 world = modelMatrix * batchingMatrix * vec4(position, 1.0);
     int id = int(batchId + 0.5);
     int size = textureSize(tOptions, 0).x;
-    vOpt = texelFetch(tOptions, ivec2(id % size, id / size), 0).xy;
+    vOpt = texelFetch(tOptions, ivec2(id % size, id / size), 0).xyz;
     // UV glTF (v dari atas) dibaca tekstur flipY default three
     vUv = vec2(uv.x, 1.0 - uv.y);
     vWorld = world.xyz;
@@ -116,10 +121,11 @@ const FRAG = /* glsl */ `
   uniform float uIntroMaterialize;
   uniform float uExposure;
   uniform vec3 uBlue;
+  uniform vec3 uGlimmer;
   varying vec2 vUv;
   varying vec3 vWorld;
   varying float vEmission;
-  varying vec2 vOpt;
+  varying vec3 vOpt;
   void main() {
     float disp = vOpt.x;
     // dua lightmap: rakit (muka kontak gelap) dan meledak (tiap sisi kena cahaya), dicampur oleh displacement
@@ -144,6 +150,9 @@ const FRAG = /* glsl */ `
     float far = smoothstep(0.0, 2.0, 0.5 * vWorld.x - 0.5 * vWorld.z);
     float sweep = sin(vWorld.x - uTime + 3.2) * 0.5 + 0.5;
     c += (e2 * clamp(disp, 0.0, 1.0) + e8 * 0.5 * sweep) * uBlue * (1.0 + far);
+    // kilau petunjuk fakta (vOpt.z 0..1): muka dalam menyala kuat, muka luar dapat rona biru tipis
+    c *= 1.0 - vOpt.z * uGlimmer.z * vec3(0.35, 0.15, 0.0);
+    c += vOpt.z * (e2 * uGlimmer.x + uGlimmer.y) * uBlue;
     // SSS palsu: sisi matahari (+x) dan bagian atas sedikit lebih terang
     c += (0.1 * vWorld.x + 0.4) * 0.3 * min(vWorld.y + 0.5, 1.0) * 0.5;
     c = clamp(c, 0.0, 1.0);
@@ -169,6 +178,7 @@ export class Bricks {
     this.options.needsUpdate = true
     this.breath = { value: 1 } // modulator napas, 0 -> 1 saat intro (blueprint 6.5 detik 2.0)
     this.hovered = -1 // indeks bata yang sedang di-hover (diisi BrickFacts), -1 = tidak ada
+    this.glimmer = { index: -1, amount: 0 } // kilau petunjuk fakta (diisi BrickFacts): bata + kekuatan 0..1
 
     this.material = new ShaderMaterial({
       uniforms: {
@@ -180,6 +190,7 @@ export class Bricks {
         uIntroMaterialize: { value: 1 },
         uExposure: { value: 1.15 }, // grade igloo v2 (M2): bata ~0.85x terang tanah di dekatnya, seperti ref 03
         uBlue: { value: BLUE },
+        uGlimmer: { value: new Vector3(GLIMMER_GLOW.inner, GLIMMER_GLOW.face, GLIMMER_GLOW.cool) },
       },
       vertexShader: VERT,
       fragmentShader: FRAG,
@@ -260,7 +271,8 @@ export class Bricks {
       const sd = scroll * (0.3 + 0.2 * clamp(c.y, 0, 4)) * lerp(0.5, 1.5, r.y)
       const d0 = b.d2 + sd
       const h = b.h2
-      const d = d0 + HOVER_LIFT.push * h
+      const g = b.index === this.glimmer.index ? this.glimmer.amount : 0
+      const d = d0 + HOVER_LIFT.push * h + GLIMMER_GLOW.push * g
       b.disp = d
       b.basePosition.copy(c).multiplyScalar(1 + d0)
       b.position.copy(c).multiplyScalar(1 + d)
@@ -276,6 +288,7 @@ export class Bricks {
       this.mesh.setMatrixAt(b.id, _m)
       data[b.id * 4] = d
       data[b.id * 4 + 1] = b.b2
+      data[b.id * 4 + 2] = g
     }
     this.options.needsUpdate = true
   }

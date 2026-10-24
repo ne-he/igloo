@@ -1,13 +1,18 @@
 import { Raycaster, Vector2, Vector3, Matrix4, Ray, Sphere, DoubleSide } from 'three'
 import { MeshBVH } from 'three-mesh-bvh'
 import { bus } from '../../engine/Bus.js'
-import { assignUniqueFacts } from './facts.js'
+import { assignUniqueFacts, FactTracker, Glimmer } from './facts.js'
 
 // Fakta di bata igloo: hover (mouse) atau tap (sentuh) satu bata, bata itu melayang sedikit (Bricks.hovered,
 // HOVER_LIFT) dan label MSDF pendek muncul di scene UI (src/scenes/ui/FactLabel.js).
 // Bicara ke UI lewat bus, sama seperti scene lain:
-//   'igloo_fact' { index, text, anchor, camera }  anchor = Vector3 hidup (b.anchor), diproyeksikan UI tiap frame
+//   'igloo_fact' { index, text, fact, number, total, anchor, camera }  anchor = Vector3 hidup (b.anchor),
+//                                                  diproyeksikan UI tiap frame. number = urutan fakta (1..total)
 //   'igloo_fact' null                              label pudar
+//   'igloo_fact_found' { fact, count, total }      fakta baru ditemukan (label tampil foundDwell detik), sekali per fakta
+//   'igloo_facts_complete'                         semua fakta ditemukan, dipancarkan tepat sekali per sesi
+// Kilau petunjuk: satu bata berfakta yang belum ditemukan menyala biru tiap beberapa detik (facts.js Glimmer),
+// ditulis ke bricks.glimmer lalu dibaca Bricks.update.
 // Raycast: bola pembatas per bata dulu, lalu BVH per geometri bata (three-mesh-bvh, mode indirect supaya
 // index geometri tidak diubah) di ruang lokal bata. Hanya aktif di sekitar titik istirahat igloo, tidak
 // saat intro, tidak saat detail proyek terbuka.
@@ -25,6 +30,7 @@ export const FACTS = {
   moveWindow: 0.15,
   nearRadius: 1.6,
   tapHold: 4, // detik, label hasil tap di layar sentuh bertahan selama ini
+  foundDwell: 0.3, // detik, label fakta harus tampil selama ini sebelum dihitung ditemukan (sapuan kursor tidak dihitung)
   restCamera: [-13.49, 2.65, 14.43], // posisi kamera di titik istirahat (IglooScene), bata berfakta dipilih yang menghadap ke sini
 }
 
@@ -65,6 +71,11 @@ export class BrickFacts {
     const [vx, vy, vz] = FACTS.restCamera
     this.assignment = assignUniqueFacts(list.map((b) => b.centroid.clone().applyMatrix4(world)), this.facts.length, { x: vx, y: vy, z: vz })
     for (const b of list) b.bvh = new MeshBVH(b.geometry, { indirect: true })
+    // bata berfakta, urut indeks bata (kandidat kilau)
+    this.factBricks = this.assignment.map((f, i) => (f >= 0 ? i : -1)).filter((i) => i >= 0)
+    this.tracker = new FactTracker(Math.min(this.facts.length, this.factBricks.length))
+    this.glimmer = new Glimmer()
+    this._dwell = 0 // detik label fakta sekarang sudah tampil (hitungan ditemukan)
 
     bus.on('pointer_move', (input) => {
       if (input.pointerType === 'mouse') {
@@ -99,7 +110,9 @@ export class BrickFacts {
 
   update(frame, progress) {
     const dt = Math.min(0.1, (frame.delta || 16.667) / 1000)
-    if (!this.enabled(progress)) {
+    const on = this.enabled(progress)
+    this._updateGlimmer(dt, on)
+    if (!on) {
       this._tap = null
       this._tapTime = 0
       this._set(-1)
@@ -126,6 +139,27 @@ export class BrickFacts {
         if (this._tapTime <= 0) this._set(-1)
       }
     }
+    this._updateFound(dt)
+  }
+
+  /** Label fakta yang sudah tampil foundDwell detik = fakta ditemukan (sekali per fakta). */
+  _updateFound(dt) {
+    const f = this.current >= 0 ? this.assignment[this.current] : -1
+    if (f < 0 || this.tracker.has(f)) return
+    this._dwell += dt
+    if (this._dwell < FACTS.foundDwell) return
+    const r = this.tracker.mark(f)
+    if (!r.isNew) return
+    bus.emit('igloo_fact_found', { fact: f, count: r.count, total: r.total })
+    if (r.justCompleted) bus.emit('igloo_facts_complete')
+  }
+
+  /** Kilau biru di bata berfakta yang belum ditemukan, hanya saat hover fakta aktif. Berhenti kalau semua ketemu. */
+  _updateGlimmer(dt, on) {
+    const cand = on ? this.factBricks.filter((i) => i !== this.current && !this.tracker.has(this.assignment[i])) : []
+    const g = this.glimmer.update(dt, on, cand)
+    this.bricks.glimmer.index = g.index
+    this.bricks.glimmer.amount = g.amount
   }
 
   /**
@@ -177,6 +211,7 @@ export class BrickFacts {
     this._leaveTime = 0
     if (index === this.current) return
     this.current = index
+    this._dwell = 0
     this.bricks.hovered = index
     if (index < 0) {
       bus.emit('igloo_fact', null)
@@ -189,7 +224,8 @@ export class BrickFacts {
       return
     }
     const b = this.bricks.bricks[index]
-    bus.emit('igloo_fact', { index, text, anchor: b.anchor, camera: this.camera })
+    const fact = this.assignment[index]
+    bus.emit('igloo_fact', { index, text, fact, number: fact + 1, total: this.tracker.total, anchor: b.anchor, camera: this.camera })
     // bunyi label muncul, sama dengan label kristal (Audio.js menjaga jeda minimal antar beep)
     bus.emit('audio_play', { name: 'beeps' })
   }

@@ -4,13 +4,16 @@ import {
 import { renderTargetType } from '../../engine/rtType.js'
 import gsap from 'gsap'
 import { bus } from '../../engine/Bus.js'
-import { mod } from '../../engine/math.js'
 import { MsdfFont } from '../../text/MsdfFont.js'
 import { MsdfText } from '../../text/MsdfText.js'
 import { layoutText } from '../../text/layout.js'
 import { glyphTableTexture } from '../../text/textMaterial.js'
 import { computeUILayout, UI_RATIOS, UI_BREAKPOINTS } from './layout.js'
 import { FactLabel } from './FactLabel.js'
+import { FactCounter } from './FactCounter.js'
+import { ScrollCue } from './ScrollCue.js'
+import { SectionIndex } from './SectionIndex.js'
+import { ScrollGuide } from './ScrollGuide.js'
 import content from '../../content/content.js'
 
 // Scene UI (blueprint 4.1 dan 5.6): kamera orthographic dalam piksel CSS, origin kiri atas.
@@ -28,7 +31,6 @@ const COLOR_TEXT = 0xffffff
 // karena latar di belakang baris ini terang. Diukur M8 lewat screenshot dengan baris judul disembunyikan.
 const COLOR_TITLE = 0x1e1e2c
 const LOGO_BOLD = 0.15 // Medium ditebalkan kira-kira ke Bold lewat ambang MSDF
-const HINT_HIDE_DISTANCE = 0.59 // unit scroll dari posisi awal (forensik arsitektur 2.6)
 const INTRO_AUTO_DELAY = 0.5 // detik, fallback kalau tidak ada intro igloo yang jalan (deep link, ?nointro)
 const BLOCK_STAGGER = 0.1 // [?] jeda antar blok, angka igloo tidak tercatat
 const SHOW1 = { duration: 0.4, ease: 'none' }
@@ -53,8 +55,6 @@ export class UIScene extends Scene {
     this.layout = null
     this.introStarted = false
     this.introTl = null
-    this.hintVisible = false
-    this.scrollStart = 0
     this._autoIntro = null
     this.detailMode = false
     this.soundOn = false
@@ -74,10 +74,10 @@ export class UIScene extends Scene {
       t.copyrightTitle = new MsdfText(f, { text: c.copyright.title, color: COLOR_TITLE, seed: 12 })
       t.copyrightText = new MsdfText(f, { text: c.copyright.text, color: COLOR_TEXT, seed: 13 })
     }
-    t.hint = new MsdfText(f, { text: c.ui.scrollHint, color: COLOR_TEXT, seed: 14 })
+    // hint lama kiri bawah ("Scroll down to discover.") diganti cue tengah bawah (ScrollCue.js), teksnya tetap di a11y
     t.sound = new MsdfText(f, { text: soundLabel(false), color: COLOR_TEXT, seed: 15 })
     t.close = new MsdfText(f, { text: c.ui.close || 'Close', color: COLOR_TEXT, seed: 16 })
-    this.blocks = [t.logo, t.copyrightTitle, t.copyrightText, t.hint, t.sound].filter(Boolean)
+    this.blocks = [t.logo, t.copyrightTitle, t.copyrightText, t.sound].filter(Boolean)
     for (const [name, mesh] of Object.entries(t)) {
       mesh.name = `ui_${name}`
       mesh.uniforms.uShow1.value = 0
@@ -89,7 +89,6 @@ export class UIScene extends Scene {
     this._measures = {
       logoWidthEm: layoutText(f, c.brand.name, { letterSpacing: UI_RATIOS.logoLetterSpacing }).width,
       capHeight: f.capHeight,
-      hintLines: layoutText(f, c.ui.scrollHint, { maxWidth: UI_RATIOS.hintMaxWidth }).lineCount,
     }
 
     // Bingkai sudut tombol Close: 4 siku, digambar ulang tiap resize (piksel)
@@ -114,6 +113,16 @@ export class UIScene extends Scene {
     this.factLabel = new FactLabel(f)
     this.add(this.factLabel)
     bus.on('igloo_fact', (target) => this.factLabel.setTarget(target))
+    // penghitung "FOUND 3/12" kanan atas (FactCounter.js, dengar 'igloo_fact_found' sendiri)
+    this.factCounter = new FactCounter(f, { label: this.factLabel })
+    this.add(this.factCounter)
+
+    // Petunjuk scroll (Okt 2026): cue tengah bawah, indeks section kanan bawah, idle peek + lompat (ScrollGuide.js)
+    this.scrollCue = new ScrollCue(f, c.ui.scrollCue)
+    this.sectionIndex = new SectionIndex(f, c.ui.sections)
+    this.add(this.scrollCue, this.sectionIndex)
+    this.guide = new ScrollGuide({ engine, cue: this.scrollCue, index: this.sectionIndex, detail: () => this._detailBusy() })
+    this.indexHover = -1
 
     this.writeA11y()
     bus.on('resize', ({ width, height }) => this.resize(width, height))
@@ -121,10 +130,15 @@ export class UIScene extends Scene {
     bus.on('pointer_move', (input) => {
       this._hoverClose(input.position)
       this._hoverSound(input.position)
+      this._hoverIndex(input.position)
     })
     bus.on('click', (input) => {
       if (this.detailMode && this._inClose(input.position)) bus.emit('detail_close')
       else if (this._inSound(input.position)) bus.emit('audio_mute_toggle')
+      else {
+        const i = this.sectionIndex.hit(input.position)
+        if (i >= 0) this.guide.jumpTo(i)
+      }
     })
     // AudioManager (src/audio/Audio.js) memberi tahu status bunyi, teks ditukar dengan scramble
     bus.on('audio_state', ({ enabled }) => this.setSoundOn(enabled))
@@ -137,8 +151,12 @@ export class UIScene extends Scene {
     const closeVis = [this.texts.close.visible, this.closeFrame.visible]
     this.texts.close.visible = this.closeFrame.visible = true
     this.factLabel.forceVisible(true)
+    this.scrollCue.forceVisible(true)
+    this.sectionIndex.forceVisible(true)
     await renderer.compileAsync(this, this.camera)
     this.factLabel.forceVisible(false)
+    this.scrollCue.forceVisible(false)
+    this.sectionIndex.forceVisible(false)
     this.texts.close.visible = closeVis[0]
     this.closeFrame.visible = closeVis[1]
     renderer.initTexture(this.font.texture)
@@ -169,16 +187,47 @@ export class UIScene extends Scene {
     place(t.logo, L.logo, { letterSpacing: L.logo.letterSpacing })
     if (t.copyrightTitle) place(t.copyrightTitle, L.copyrightTitle)
     if (t.copyrightText) place(t.copyrightText, L.copyrightText)
-    place(t.hint, L.hint)
     place(t.sound, L.sound)
+    this.scrollCue.resize(L.cue)
+    this.sectionIndex.resize(L.index)
     this._layoutClose(width)
     this._layoutSound()
     this.factLabel.resize(width, height, L.sound.size)
+    this.factCounter.resize(width, height, L)
     // label fakta igloo tidak boleh menutup blok teks UI (kotak teks + 10 px)
     this.factLabel.avoid = this.blocks.map((m) => {
       const bx = m.box
       return { x0: m.position.x + bx.x - 10, y0: -(m.position.y + bx.y) - 10, x1: m.position.x + bx.x + bx.width + 10, y1: -(m.position.y + bx.y - bx.height) + 10 }
     })
+    // cue scroll dan indeks section juga tidak boleh ditutup label fakta
+    for (const r of [this.scrollCue.rect, this.sectionIndex.boxRect]) {
+      if (r) this.factLabel.avoid.push({ x0: r.x0 - 10, y0: r.y0 - 10, x1: r.x1 + 10, y1: r.y1 + 10 })
+    }
+  }
+
+  /**
+   * Titik p (piksel CSS) kena tombol UI (Sound, Close, item indeks section)? Untuk handler klik scene lain yang
+   * menangkap klik di seluruh layar (carousel ruang link: klik setengah kanan = link berikutnya), supaya klik
+   * tombol UI tidak ikut diproses di sana. Dipakai LinksUI.js.
+   */
+  hitTest(p) {
+    return (this.detailMode && this._inClose(p)) || this._inSound(p) || this.sectionIndex.hit(p) >= 0
+  }
+
+  /** Detail proyek terbuka atau sedang membuka/menutup: cue dan indeks section disembunyikan. */
+  _detailBusy() {
+    const dp = this.engine?.composite?.uniforms?.uDetailProgress?.value ?? 0
+    return this.detailMode || dp > 0
+  }
+
+  /** Hover item indeks section: cursor pointer + scramble ulang + "ui-long" (sama dengan tombol Sound). */
+  _hoverIndex(p) {
+    const i = this.introStarted && !this._detailBusy() ? this.sectionIndex.hit(p) : -1
+    if (i === this.indexHover) return
+    this.indexHover = i
+    this.sectionIndex.setHovered(i)
+    this.engine?.setCursor('ui_index', i >= 0)
+    if (i >= 0) bus.emit('audio_play', { name: 'ui-long' })
   }
 
   /** Kotak klik tombol Sound (teks + ikon) dan geometri ikon speaker, piksel CSS y ke bawah. */
@@ -280,18 +329,21 @@ export class UIScene extends Scene {
   }
 
   /**
-   * Mode detail (M6): copyright + hint disembunyikan, tombol Close muncul. Logo dan Sound tetap
-   * (ref 08). instant = deep link, tanpa animasi.
+   * Mode detail (M6): copyright disembunyikan, tombol Close muncul. Logo dan Sound tetap (ref 08).
+   * Cue scroll dan indeks section diurus update() lewat _detailBusy(). instant = deep link, tanpa animasi.
    */
   setDetailMode(on, { instant = false } = {}) {
     if (on === this.detailMode) return
     this.detailMode = on
     const t = this.texts
-    const hideable = [t.copyrightTitle, t.copyrightText, t.hint].filter(Boolean)
+    const hideable = [t.copyrightTitle, t.copyrightText].filter(Boolean)
     const close = t.close
     if (on) {
       for (const m of hideable) fadeOut(m, instant)
-      this.hintVisible = false
+      if (instant) {
+        this.scrollCue.setVisible(false, { instant: true })
+        this.sectionIndex.setVisible(false, { instant: true })
+      }
       close.visible = this.closeFrame.visible = true
       if (instant) {
         close.uniforms.uShow1.value = close.uniforms.uShow2.value = this.closeShow.value = 1
@@ -309,7 +361,7 @@ export class UIScene extends Scene {
           if (!this.detailMode) close.visible = this.closeFrame.visible = false
         },
       })
-      // copyright kembali, hint diurus update() (muncul lagi hanya kalau dekat posisi awal)
+      // copyright kembali, cue dan indeks diurus update()
       if (this.introStarted) {
         const tl = gsap.timeline()
         if (t.copyrightTitle) reveal(tl, t.copyrightTitle, 0)
@@ -332,46 +384,39 @@ export class UIScene extends Scene {
     this.speaker.visible = ss > 0
     // label fakta bata: posisi diproyeksikan dari kamera igloo yang sudah dirender frame ini
     this.factLabel.update(Math.min(0.1, (frame.delta || 16.667) / 1000), !this.detailMode)
-    if (!this.introStarted || this.detailMode) return
-    // Hint hilang setelah scroll sekitar 0.59 unit dari posisi awal, muncul lagi kalau kembali
-    // (jarak dihitung melingkar karena scroll berulang tiap 10.85).
-    const s = frame.scroll
-    const d = mod(s.y - this.scrollStart, s.total)
-    this.setHintVisible(Math.min(d, s.total - d) < HINT_HIDE_DISTANCE)
+    this.factCounter.update(Math.min(0.1, (frame.delta || 16.667) / 1000), frame, this.introStarted && !this.detailMode)
+    // Petunjuk scroll: guide memutuskan cue tampil / peek / item aktif, cue dan indeks menggambar dirinya.
+    // Indeks tampil sesudah intro UI di semua scene, sembunyi selama detail proyek terbuka.
+    const dt = Math.min(0.1, (frame.delta || 16.667) / 1000)
+    this.guide.update(frame, dt)
+    this._a11yActive(this.guide.active)
+    this.sectionIndex.setVisible(this.introStarted && !this._detailBusy())
+    if (this.indexHover >= 0 && this._detailBusy()) this._hoverIndex({ x: -1e9, y: -1e9 })
+    this.scrollCue.update(dt)
+    this.sectionIndex.update(frame.ratio || 1)
   }
 
-  /** Reveal semua blok berurutan: uShow1 0.4 s linear + uShow2 0.75 s sine.out, jeda per blok. */
+  /**
+   * Reveal semua blok berurutan: uShow1 0.4 s linear + uShow2 0.75 s sine.out, jeda per blok.
+   * Indeks section ikut reveal sendiri lewat update() (setVisible). Akhir timeline = intro UI selesai: cue scroll
+   * boleh tampil dan jam idle peek mulai (ScrollGuide.introDone).
+   */
   intro() {
     if (this.introStarted) return
     this.introStarted = true
     this._autoIntro?.kill()
-    this.scrollStart = this.engine ? this.engine.scroll.y : 0
-    this.hintVisible = true
+    this.guide.track()
     const tl = gsap.timeline()
-    // deep link: intro UI jalan saat detail sudah terbuka, copyright + hint tetap tersembunyi
-    const skip = this.detailMode ? [this.texts.copyrightTitle, this.texts.copyrightText, this.texts.hint] : []
-    if (this.detailMode) this.hintVisible = false
+    // deep link: intro UI jalan saat detail sudah terbuka, copyright tetap tersembunyi
+    const skip = this.detailMode ? [this.texts.copyrightTitle, this.texts.copyrightText] : []
     this.blocks.forEach((mesh, i) => {
       if (!skip.includes(mesh)) reveal(tl, mesh, i * BLOCK_STAGGER)
     })
+    tl.call(() => this.guide.introDone(), null, tl.duration() + 0.15)
     // igloo: reveal logo di intro memutar "logo" (hanya terdengar kalau Sound sudah On)
     bus.emit('audio_play', { name: 'logo' })
     this.introTl = tl
     return tl
-  }
-
-  setHintVisible(v) {
-    if (v === this.hintVisible) return
-    this.hintVisible = v
-    const u = this.texts.hint.uniforms
-    if (v) {
-      reveal(gsap.timeline(), this.texts.hint, 0)
-    } else {
-      // igloo: hint yang hilang memutar "ui-short"
-      bus.emit('audio_play', { name: 'ui-short' })
-      gsap.to(u.uShow1, { value: 0, duration: 0.3, ease: 'none' })
-      gsap.to(u.uShow2, { value: 0, duration: 0.3, ease: 'none' })
-    }
   }
 
   /** Debug/verifikasi: bekukan intro di progress p (0..1) supaya scramble bisa difoto. */
@@ -407,6 +452,12 @@ export class UIScene extends Scene {
       add('p', content.copyright.text.replace(/\n/g, ' '))
     }
     add('p', content.ui.scrollHint)
+    // teks cue scroll yang sedang tampil (ScrollGuide mengganti isinya: sentuh / semua fakta ketemu)
+    const cue = document.createElement('p')
+    cue.dataset.scrollCue = ''
+    cue.setAttribute('aria-live', 'polite')
+    cue.textContent = this.scrollCue ? this.scrollCue.text.text : content.ui.scrollCue
+    sec.append(cue)
     // tombol sungguhan untuk keyboard dan pembaca layar (canvas tidak bisa difokus)
     const btn = document.createElement('button')
     btn.type = 'button'
@@ -415,6 +466,29 @@ export class UIScene extends Scene {
     btn.setAttribute('aria-pressed', String(this.soundOn))
     btn.addEventListener('click', () => bus.emit('audio_mute_toggle'))
     sec.append(btn)
+    // indeks section: lompat ke titik istirahat section (sama dengan klik indeks di kanvas)
+    const nav = document.createElement('nav')
+    nav.dataset.sections = ''
+    nav.setAttribute('aria-label', content.ui.sectionsLabel || 'Sections')
+    ;(content.ui.sections || []).forEach((label, i) => {
+      const b = document.createElement('button')
+      b.type = 'button'
+      b.dataset.section = String(i)
+      b.textContent = `${String(i + 1).padStart(2, '0')} ${label}`
+      b.addEventListener('click', () => this.guide?.jumpTo(i))
+      nav.append(b)
+    })
+    sec.append(nav)
+  }
+
+  /** Tandai tombol section aktif di salinan a11y (aria-current). */
+  _a11yActive(i) {
+    if (typeof document === 'undefined' || i === this._a11ySection) return
+    this._a11ySection = i
+    document.querySelectorAll('#a11y [data-section]').forEach((b) => {
+      if (Number(b.dataset.section) === i) b.setAttribute('aria-current', 'true')
+      else b.removeAttribute('aria-current')
+    })
   }
 }
 

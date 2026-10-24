@@ -38,6 +38,7 @@ export class Scroll {
     this.enabled = false
     this.lastInputTime = 0
     this.centering = null
+    this.jumps = 0 // jumlah lompat langsung setN, dibaca petunjuk scroll UI untuk mengenali scroll programatik
     this.state = this.map(0)
   }
 
@@ -48,6 +49,7 @@ export class Scroll {
   }
 
   setN(n) {
+    this.jumps++
     this.stopAutoCenter()
     const offset = n - mod(this.y, this.total)
     this.y += offset

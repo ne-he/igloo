@@ -153,6 +153,8 @@ export class LinksUI extends Group {
     })
     bus.on('click', (input) => {
       if (!this.enabled) return
+      // klik tombol UI (Sound, indeks section) jangan ikut menggeser carousel
+      if (this.engine.ui?.hitTest?.(input.position)) return
       if (this._inVisit(input.position)) this.visit()
       else this.onChange(input.position.x < this.width / 2 ? -1 : 1)
     })
