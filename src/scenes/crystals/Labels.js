@@ -20,10 +20,25 @@ import { clampShift } from './nudge.js'
 //  - "CLICK TO EXPLORE" diganti tombol berbingkai [ OPEN ] di bawah garis tanggal: bingkai bernapas pelan,
 //    saat hot (hover kristal / tombol, atau ajakan) isinya jadi putih dan teksnya tinta.
 //  - Teks ajakan kecil ("CLICK THE ICE" / "TAP THE ICE") muncul di bawah tombol dengan scramble.
+//  - (26 Okt 2026) Pengunjung non-IT harus langsung tahu kristal ini tentang apa: blok judul sekarang
+//    kicker kecil NEMI_SEC_0X lalu kata section BESAR (project.heading, huruf kapital, 3x ukuran label),
+//    meniru judul section raksasa ICEBERG v2 (.bigword + .bigword-code). Bayangan kata besar 2 px.
 
 export const LABELS = {
   title: 0.13, date: 0.13, temp: 0.105, button: 0.115, nudge: 0.1,
+  heading: 0.13 * 3, // kata section besar = 3x tinggi em label
   show1: 0.4, show2: 0.75, line: 0.2, hide: 0.3,
+}
+
+// Blok judul: jarak dalam unit label (sebelum skala), spasi huruf dalam em teks masing-masing
+export const TITLE = {
+  headingBase: 0.07, // baseline kata besar di atas garis bawah
+  kickerGap: 0.075, // tepi atas huruf kata besar ke baseline kicker
+  headingSpacing: 0.03,
+  kickerSpacing: 0.08,
+  headingBold: 0.06,
+  headingShadowPx: 2,
+  pad: 0.6, // em kicker, ruang pelat (lebih lega dari blok lain karena hurufnya besar)
 }
 
 // Tinggi em judul di layar (piksel CSS). Layar pendek mengecil sebanding tinggi, ponsel sempit pakai narrow.
@@ -81,10 +96,16 @@ export function formatTemp(c) {
   return `${f}\n${sign}${cel}`
 }
 
-/** Judul jadi dua baris: kode portofolio, lalu nama. */
-const splitTitle = (title) => {
+/**
+ * Judul kristal jadi kicker kecil (kode section, token pertama title) + kata besar (heading, kapital).
+ * Tanpa heading, sisa title dipakai sebagai kata besar.
+ */
+export function titleParts(project) {
+  const title = String(project?.title || '')
   const i = title.indexOf(' ')
-  return i < 0 ? title : `${title.slice(0, i)}\n${title.slice(i + 1)}`
+  const kicker = i < 0 ? title : title.slice(0, i)
+  const rest = i < 0 ? '' : title.slice(i + 1)
+  return { kicker, heading: String(project?.heading || rest).toUpperCase() }
 }
 
 /** Baris tanggal di atas tombol (CLICK TO EXPLORE lama sudah jadi tombol [ OPEN ]). */
@@ -136,9 +157,10 @@ class ShadowText {
     for (const m of [this.main, this.shadow]) m.uniforms.uScramble.value = on ? 1 : 0
   }
 
-  place(pos, quaternion, scale) {
+  // shadowK = kelipatan geser bayangan 1 px (kata besar memakai 2 px)
+  place(pos, quaternion, scale, shadowK = 1) {
     this.main.position.copy(pos)
-    this.shadow.position.copy(pos).add(_shadow)
+    this.shadow.position.copy(pos).addScaledVector(_shadow, shadowK)
     for (const m of [this.main, this.shadow]) {
       m.quaternion.copy(quaternion)
       m.scale.setScalar(scale)
@@ -164,7 +186,9 @@ class Label {
     this.anchor = new Vector3()
     this.elbow = new Vector3()
     this.side = 1 // 1 = sisi normal, -1 = cermin (blok terpotong tepi layar)
+    this.shift = 0 // geseran blok masuk layar (dunia, sumbu kanan kamera)
     this.path = [] // titik garis penunjuk (dunia)
+    this.branch = null // cabang garis { pts }, mulai digambar saat garis utama sampai pts[0]
   }
 
   setTarget(on, dt, snap) {
@@ -215,18 +239,20 @@ export class CrystalLabels extends Group {
     this.add(this.fill)
 
     const mk = (text, size, align, s, extra = {}) => new ShadowText(font, { text, size, align, seed: seed * 10 + s, ...extra }, this)
-    this.title = mk(splitTitle(project.title), LABELS.title, 'left', 1)
+    const parts = titleParts(project)
+    this.kicker = mk(parts.kicker, LABELS.title, 'left', 1, { letterSpacing: TITLE.kickerSpacing })
+    this.heading = mk(parts.heading, LABELS.heading, 'left', 7, { letterSpacing: TITLE.headingSpacing, bold: TITLE.headingBold })
     this.date = mk(dateText(project.date), LABELS.date, 'right', 2)
     this.tempLabel = mk('TEMP', LABELS.temp, 'left', 3)
     this.tempValue = mk(formatTemp(project.temp), LABELS.temp, 'right', 4)
     this.button = mk(this.ui.open, LABELS.button, 'center', 5, { bold: BUTTON.bold })
     this.nudgeText = mk(this.ui.nudge, LABELS.nudge, 'right', 6)
     this.labels = [
-      new Label('title', [this.title]),
+      new Label('title', [this.kicker, this.heading]),
       new Label('date', [this.date, this.button]),
       new Label('temp', [this.tempLabel, this.tempValue]),
     ]
-    this.texts = [this.title, this.date, this.tempLabel, this.tempValue, this.button, this.nudgeText]
+    this.texts = [this.kicker, this.heading, this.date, this.tempLabel, this.tempValue, this.button, this.nudgeText]
     // ajakan: reveal sendiri, lepas dari jendela label
     this.nudge = { on: false, show1: 0, show2: 0 }
     this.nudgeText.setShow(0, 0)
@@ -355,6 +381,7 @@ export class CrystalLabels extends Group {
       // ambang 8 px supaya tidak bolak-balik saat kristal bergoyang di batas
       if (Math.abs(other.shift) + 8 * px < Math.abs(pick.shift)) pick = other
       l.side = pick.side
+      l.shift = pick.shift
       l.elbow.copy(pick.elbow).addScaledVector(_right, pick.shift)
       return pick.off
     }
@@ -373,18 +400,32 @@ export class CrystalLabels extends Group {
       p.set(_c, q, (a1 - a0) * s, (y1 - y0 + 2 * pad) * s, st.soft * em * s, st.radius * em * s, alpha)
     }
 
-    // judul: siku = ujung kanan garis bawah, teks rata kiri di atas garis bawah, garis: kristal -> siku -> kiri
+    // judul: siku = ujung kanan garis bawah, garis: kristal -> siku -> kiri. Kata besar rata kiri tepat di atas
+    // garis bawah, kicker kecil di atasnya, satu pelat menutup keduanya.
     {
       const l = this.labels[0]
       const T = LABELS.title
-      const w = this.title.box.width + UNDERLINE_PAD
-      const lh = this.title.layout.lineHeight * T
-      const base = 0.05 + (this.title.layout.lineCount - 1) * lh
-      const top = base + capH * T
-      const off = block(l, -w, 0, st.pad * T, -w, 0, false)
-      this.title.place(at(_p, l, -w + off, base), q, s)
-      l.path = [l.anchor.clone(), l.elbow.clone(), at(new Vector3(), l, off === 0 ? -w : w, 0)]
-      plate(this.plates.title, l, -w + off, off, 0, top, T, off === 0)
+      const H = LABELS.heading
+      const w = Math.max(this.kicker.box.width, this.heading.box.width) + UNDERLINE_PAD
+      const hBase = TITLE.headingBase
+      const kBase = hBase + capH * H + TITLE.kickerGap
+      const top = kBase + capH * T
+      const em = (T * TITLE.pad) / st.pad // em pelat: pad = TITLE.pad x em kicker
+      const off = block(l, -w, 0, st.pad * em, -w, 0, false)
+      this.heading.place(at(_p, l, -w + off, hBase), q, s, TITLE.headingShadowPx)
+      this.kicker.place(at(_p, l, -w + off, kBase), q, s)
+      // blok lebar digeser ke kanan oleh tepi kiri layar (ponsel): garis penunjuk tetap naik ke titik siku
+      // asli di garis bawah (tidak menyerong melintasi label TEMP), garis bawah utuh ke dua arah
+      const sh = l.shift / s
+      if (off === 0 && sh > 1e-4 && sh < w) {
+        const joint = at(new Vector3(), l, -sh, 0)
+        l.path = [l.anchor.clone(), joint, at(new Vector3(), l, -w, 0)]
+        l.branch = { pts: [joint.clone(), at(new Vector3(), l, 0, 0)] }
+      } else {
+        l.path = [l.anchor.clone(), l.elbow.clone(), at(new Vector3(), l, off === 0 ? -w : w, 0)]
+        l.branch = null
+      }
+      plate(this.plates.title, l, -w + off, off, 0, top, em, off === 0)
     }
     // tanggal + tombol: siku = ujung kiri garis bawah, tanggal rata kanan di atas garis,
     // tombol berbingkai rata kanan di bawah garis, teks ajakan di bawah tombol
@@ -474,16 +515,12 @@ export class CrystalLabels extends Group {
     this.frame.geometry.setDrawRange(0, n)
   }
 
-  // garis penunjuk digambar sepanjang jalurnya sesuai progres line (0..1), urut dari titik kristal
+  // garis penunjuk digambar sepanjang jalurnya sesuai progres line (0..1), urut dari titik kristal.
+  // Cabang (kalau ada) mulai tumbuh saat garis utama sampai titik awalnya dan selesai bersamaan.
   _writeLines() {
     const pos = this.lines.geometry.attributes.position
     let n = 0
-    for (const l of this.labels) {
-      if (l.line <= 0) continue
-      const pts = l.path
-      let total = 0
-      for (let i = 1; i < pts.length; i++) total += pts[i].distanceTo(pts[i - 1])
-      let left = total * l.line
+    const draw = (pts, left) => {
       for (let i = 1; i < pts.length && left > 0; i++) {
         const seg = pts[i].distanceTo(pts[i - 1])
         const k = Math.min(1, left / Math.max(seg, 1e-6))
@@ -491,6 +528,19 @@ export class CrystalLabels extends Group {
         pos.setXYZ(n++, pts[i - 1].x, pts[i - 1].y, pts[i - 1].z)
         pos.setXYZ(n++, _p.x, _p.y, _p.z)
         left -= seg
+      }
+    }
+    for (const l of this.labels) {
+      if (l.line <= 0) continue
+      const pts = l.path
+      let total = 0
+      for (let i = 1; i < pts.length; i++) total += pts[i].distanceTo(pts[i - 1])
+      draw(pts, total * l.line)
+      if (l.branch) {
+        const b = l.branch.pts
+        const d1 = pts[0].distanceTo(pts[1])
+        const k = clamp((total * l.line - d1) / Math.max(total - d1, 1e-6), 0, 1)
+        draw(b, b[0].distanceTo(b[1]) * k)
       }
     }
     pos.needsUpdate = true

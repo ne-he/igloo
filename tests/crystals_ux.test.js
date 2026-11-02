@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { NudgeScheduler, NUDGE, nudgeEnvelope, clampShift, pointInRect } from '../src/scenes/crystals/nudge.js'
-import { labelEmPx, dateText, LABEL_PX } from '../src/scenes/crystals/Labels.js'
+import { labelEmPx, dateText, LABEL_PX, LABELS, titleParts } from '../src/scenes/crystals/Labels.js'
 import content from '../src/content/content.js'
 
 // Jalankan jadwal ajakan per 1/60 s dari t0 sampai t1, kembalikan waktu tiap ajakan mulai.
@@ -100,6 +100,21 @@ describe('tata letak label kristal', () => {
     expect(labelEmPx(1920, 1080)).toBe(LABEL_PX.em)
     expect(labelEmPx(375, 812)).toBe(LABEL_PX.narrow)
     expect(labelEmPx(375, 600)).toBeGreaterThanOrEqual(LABEL_PX.min)
+  })
+
+  it('blok judul: kicker kode section kecil + kata section besar (heading kapital) 2.5 sampai 3.5x label', () => {
+    expect(titleParts(content.projects[0])).toEqual({ kicker: 'NEMI_SEC_01', heading: 'ABOUT' })
+    for (const p of content.projects) {
+      const t = titleParts(p)
+      expect(t.kicker).toMatch(/^NEMI_SEC_0\d$/)
+      expect(t.heading).toBe(p.heading.toUpperCase())
+      expect(t.heading).toMatch(/^[ -~]+$/)
+    }
+    // tanpa heading: sisa title jadi kata besar
+    expect(titleParts({ title: 'CODE_01 WORK' })).toEqual({ kicker: 'CODE_01', heading: 'WORK' })
+    const k = LABELS.heading / LABELS.title
+    expect(k).toBeGreaterThanOrEqual(2.5)
+    expect(k).toBeLessThanOrEqual(3.5)
   })
 
   it('baris tanggal tanpa CLICK TO EXPLORE, teks tombol dan ajakan ASCII cetak saja', () => {

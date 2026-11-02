@@ -8,9 +8,13 @@ Langkah:
   2. Klik kristal (page.mouse.click, event pointer asli): URL jadi /portfolio/journey,
      frame di 0.5 / 1.5 / 3 s sesudah klik (state dp/dp2 dicatat bersama tiap frame).
   3. Detail terbuka: scene scroll tidak di-update (counter update kristal tidak naik), FPS.
-  4. Sapuan mouse di atas panel (jejak + scramble), chip link (window.open di-stub, tidak buka tab).
+     Panel format blok (Okt 2026): teks badan >= 17 px di 1024, salinan DOM a11y sama dengan isi panel
+     (h2 judul, h3 per label blok + LINKS, li per baris + per link).
+  4. Sapuan mouse di atas panel (jejak + scramble), panel discroll sampai chip link terlihat, klik chip
+     (window.open di-stub, tidak buka tab).
   5. Scroll panel di viewport pendek (scrollMax > 0).
-  6. Back browser menutup detail (frame tengah tutup ~ ref 09), scroll aktif lagi sesudah 1 s.
+  6. Back browser menutup detail (frame tengah tutup ~ ref 09), scroll aktif lagi sesudah 1 s,
+     salinan a11y panel disembunyikan.
   7. Forward membuka lagi, Escape menutup.
   8. Back saat transisi buka: navigasi ditunda, akhirnya tertutup di '/'.
   9. Rute proyek ditolak saat scene kristal tidak terlihat (scroll di igloo).
@@ -65,6 +69,22 @@ def state(page):
 
 def wait_state(page, cond_js, timeout=8000):
     page.wait_for_function(f'(() => {{ const s = __igloo.detail.state(); return {cond_js} }})()', timeout=timeout)
+
+
+# salinan DOM a11y panel detail vs isi proyek yang sedang tampil (dihitung dari content.js di halaman)
+A11Y_JS = '''() => {
+  const sec = document.querySelector('#a11y section[data-detail]')
+  const p = __igloo.engine.detailController.panel.project
+  if (!sec || !p) return null
+  const lines = p.blocks.reduce((n, b) => n + b.lines.length, 0)
+  const links = p.links.filter((l) => l.url).length
+  return {
+    hidden: sec.hidden, h2: sec.querySelector('h2')?.textContent, heading: p.heading,
+    h3: sec.querySelectorAll('h3').length, wantH3: p.blocks.length + (links ? 1 : 0),
+    li: sec.querySelectorAll('li').length, wantLi: lines + links, a: sec.querySelectorAll('a[target=_blank]').length, wantA: links,
+    body: __igloo.engine.detailController.panel.L.sizes.body,
+  }
+}'''
 
 
 def shot(page, name):
@@ -128,6 +148,10 @@ def phase_open(page, url, frames):
     wait_state(page, "s.state === 'open'", 6000)
     s = state(page)
     check('detail terbuka penuh (dp = dp2 = 1), scroll terkunci', s['dp'] == 1 and s['dp2'] == 1 and not s['scrollEnabled'])
+    a = page.evaluate(A11Y_JS)
+    check('panel blok: teks badan >= 17 px, salinan a11y h2/h3/li/link sama dengan isi panel',
+          a is not None and a['body'] >= 17 and not a['hidden'] and a['h2'] == a['heading'] and a['h3'] == a['wantH3']
+          and a['li'] == a['wantLi'] and a['a'] == a['wantA'], json.dumps(a))
     page.evaluate('__igloo.engine.scenes[1]._updates = 0')
     page.wait_for_timeout(1000)
     n = page.evaluate('__igloo.engine.scenes[1]._updates')
@@ -225,6 +249,8 @@ def phase_back_forward(page, frames):
     wait_state(page, "s.state === 'closed' && s.dp === 0", 5000)
     frames['closed'] = shot(page, 'closed')
     check('detail tertutup penuh (dp 0)', True)
+    a = page.evaluate(A11Y_JS)
+    check('salinan a11y panel disembunyikan saat detail tertutup', a is not None and a['hidden'], json.dumps(a))
     page.go_forward()
     wait_state(page, "s.state === 'open'", 8000)
     check('forward membuka lagi journey', state(page)['slug'] == 'journey' and page.evaluate('location.pathname') == '/portfolio/journey')

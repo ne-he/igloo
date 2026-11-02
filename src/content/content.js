@@ -43,6 +43,8 @@ export default {
 
   // 3 kristal = profil Nehemiah, ditulis ulang dari konten ICEBERG v2 (icev2/src/content.js, sudah
   // diverifikasi di sana). Angka dan klaim harus sama persis dengan sumbernya, jangan ditambah (L9).
+  // 26 Okt 2026: ditulis ulang jadi kalimat pendek per blok supaya orang non-IT gampang membaca.
+  // heading = kata besar di panel detail, summary = satu kalimat pembuka, blocks = { label, lines } (DetailPanel).
   // Font atlas cuma punya ASCII + (c) (r) dan beberapa tanda kutip, jadi jangan pakai simbol lain.
   projects: [
     {
@@ -52,22 +54,44 @@ export default {
       temp: 1.05,
       crystal: 'crystal1',
       inner: 'inner1',
-      summary: 'Nehemiah Wilhelmus Junaidi, Data Science at BINUS University.',
-      description: [
-        'NEHEMIAH WILHELMUS JUNAIDI. Data Science undergraduate at BINUS University, Jakarta. Semester 5, '
-          + 'building at the intersection of machine learning and the web. Open to AI/ML and data internships.',
-        'EDUCATION. Bachelor of Data Science, School of Computer Science, BINUS University, on a full '
-          + 'four-year merit-based scholarship. Coursework in machine learning, deep learning, statistics, '
-          + 'databases and big data. BINUS Ambassador, and a participant in the DataHeist 2025 ML competition.',
-        'WHAT I DO. End-to-end work: from raw data and model training to the interface people actually touch. '
-          + 'Agentic workflows by default: LLM pipelines, automation-first tooling, ship fast and iterate.',
-        'STACK. Python, pandas, NumPy, Polars, DuckDB, SQL. scikit-learn, CatBoost, PyTorch, TensorFlow and Keras. '
-          + 'Gemini API, RAG with hybrid dense and BM25 retrieval, pgvector, golden-set evals. FastAPI, PostgreSQL, '
-          + 'Redis, Docker, GitHub Actions, MLflow. Three.js, React Three Fiber, Next.js, TypeScript, Blender, GSAP.',
-        'CERTIFICATIONS. NVIDIA: Deep Learning (PyTorch). RevoU: Applied AI and Integration. DSarea: AI '
-          + 'Engineering and Data Mining. MySkill: Data Analyst and Visualization. talenta.id: n8n Automation.',
-        'LANGUAGES. Indonesian, native. English, professional working proficiency (IELTS 6.5). Mandarin, '
-          + 'elementary and still learning.',
+      heading: 'About',
+      summary: 'Data Science student in Jakarta. I turn data into AI tools and websites people can use.',
+      blocks: [
+        { label: 'WHO I AM', lines: [
+          'Nehemiah Wilhelmus Junaidi, from Jakarta, Indonesia.',
+          'Data Science student at BINUS University, semester 5.',
+          'Looking for AI, machine learning and data internships.',
+        ] },
+        { label: 'STUDY', lines: [
+          'Bachelor of Data Science, School of Computer Science, BINUS.',
+          'Full four-year merit scholarship.',
+          'Classes in machine learning, deep learning, statistics, databases and big data.',
+          'BINUS Ambassador. Took part in the DataHeist 2025 ML competition.',
+        ] },
+        { label: 'WHAT I DO', lines: [
+          'I take a project from raw data all the way to the screen people tap on.',
+          'Clean the data, train the model, then build the app around it.',
+          'AI agents handle the repetitive parts, so I ship fast and keep improving.',
+        ] },
+        { label: 'TOOLS I USE', lines: [
+          'Data: Python, pandas, NumPy, Polars, DuckDB, SQL.',
+          'Machine learning: scikit-learn, CatBoost, PyTorch, TensorFlow, Keras.',
+          'AI search and chat: Gemini API, RAG with hybrid dense + BM25 search, pgvector, golden-set tests.',
+          'Servers: FastAPI, PostgreSQL, Redis, Docker, GitHub Actions, MLflow.',
+          'Web and 3D: Three.js, React Three Fiber, Next.js, TypeScript, Blender, GSAP.',
+        ] },
+        { label: 'CERTIFICATES', lines: [
+          'NVIDIA: Deep Learning (PyTorch).',
+          'RevoU: Applied AI and Integration.',
+          'DSarea: AI Engineering and Data Mining.',
+          'MySkill: Data Analyst and Visualization.',
+          'talenta.id: n8n Automation.',
+        ] },
+        { label: 'LANGUAGES', lines: [
+          'Indonesian: native.',
+          'English: professional working level (IELTS 6.5).',
+          'Mandarin: beginner, still learning.',
+        ] },
       ],
       links: [
         { label: 'CV', url: 'https://ice-nemi.vercel.app/Nehemiah-Wilhelmus-Junaidi-CV.pdf' },
@@ -83,25 +107,39 @@ export default {
       temp: -2.4,
       crystal: 'crystal2',
       inner: 'inner2',
-      summary: 'How I got here, from first datasets to deployed systems.',
-      description: [
-        'MAR TO SEP 2024 / HOPHOP OFFICE. Content creator and event organizer intern for the Genshin Impact x '
-          + 'HopHop Indonesia 2024 event. The same year, a liaison officer at the BNI National Conference 2024, '
-          + 'escorting international directors.',
-        '2024 / BINUS UNIVERSITY. Started the Data Science program in Jakarta on a full merit scholarship. '
-          + 'First lines of Python, first real datasets.',
-        'AUG 2024 TO NOW / BINUS ADMISSIONS. Admissions marketing alongside the degree: campus tours, workshops '
-          + 'and aptitude-test sessions, presenting every week. Personal record of 45 enrollments in a single '
-          + 'month against a monthly target of 3.',
-        'JUL 2025 TO MAY 2026 / PERFORMING-ARTS COACH. Coached around 40 high-school students for storytelling '
-          + 'and monologue competitions. Students took 1st place at FLS3N Storytelling and went on to the '
-          + 'provincial round.',
-        'EARLY 2026 / OUT OF THE NOTEBOOK. Churn modelling, credit scoring and end-to-end cases stopped ending '
-          + 'at the last notebook cell. Each one got pushed into a FastAPI service and a deployed endpoint.',
-        'MID 2026 / PRODUCTION HABITS. The Feature Store, the CatBoost rebuild and the CNN benchmark. The shift '
-          + 'was from a model that works to tests, CI, Docker, model cards, and honest failure modes.',
-        'SEP 2026 / SEMESTER 5. Taking earlier builds all the way to public. FinSight was rewritten into one '
-          + 'deployed Next.js app, and KENNETH, a parking app for a venture course team, went live on Firebase.',
+      heading: 'Journey',
+      summary: 'How I got here, from my first dataset to apps that are live online.',
+      blocks: [
+        { label: 'MAR TO SEP 2024 / HOPHOP OFFICE', lines: [
+          'Content and event intern for the Genshin Impact x HopHop Indonesia 2024 event.',
+          'Same year: liaison officer at the BNI National Conference 2024, escorting international directors.',
+        ] },
+        { label: '2024 / BINUS UNIVERSITY', lines: [
+          'Started Data Science in Jakarta on a full merit scholarship.',
+          'First lines of Python, first real datasets.',
+        ] },
+        { label: 'AUG 2024 TO NOW / BINUS ADMISSIONS', lines: [
+          'Admissions marketing next to my degree: campus tours, workshops and test sessions.',
+          'I present in front of people every week.',
+          'Best month: 45 new students enrolled, against a monthly target of 3.',
+        ] },
+        { label: 'JUL 2025 TO MAY 2026 / STORYTELLING COACH', lines: [
+          'Coached around 40 high school students for storytelling and monologue contests.',
+          'My students won 1st place at FLS3N Storytelling and went on to the provincial round.',
+        ] },
+        { label: 'EARLY 2026 / FROM NOTEBOOK TO APP', lines: [
+          'Projects like churn prediction and credit scoring stopped at a notebook before.',
+          'Now each one becomes a working online service (FastAPI, deployed endpoint).',
+        ] },
+        { label: 'MID 2026 / BUILDING IT PROPERLY', lines: [
+          'The Feature Store, a CatBoost rebuild and an image model benchmark.',
+          'The shift: from a model that works to tests, CI, Docker, model cards and honest limits.',
+        ] },
+        { label: 'SEP 2026 / SEMESTER 5', lines: [
+          'Taking older projects all the way to public.',
+          'FinSight was rewritten into one live Next.js app.',
+          'KENNETH, a parking app for a venture course team, went live on Firebase.',
+        ] },
       ],
       links: [
         { label: 'CV', url: 'https://ice-nemi.vercel.app/Nehemiah-Wilhelmus-Junaidi-CV.pdf' },
@@ -115,25 +153,45 @@ export default {
       temp: 0.6,
       crystal: 'crystal3',
       inner: 'inner3',
-      summary: 'Selected work. All repos at github.com/ne-he.',
-      description: [
-        'VERDICT ANALYST. A data-analyst agent that writes and runs its own code in a locked Docker sandbox, '
-          + 'then recomputes every number a second way, pandas against DuckDB SQL. Causal questions route to a '
-          + 'deterministic statistics engine, never to the language model.',
-        'FINSIGHT V2. Answers questions from SEC 10-K filings, cited down to the section, or refuses. Hybrid '
-          + 'retrieval with RRF and a measured refusal gate: hit-rate@6 18/18, out-of-scope refusals 4/4, zero '
-          + 'false refusals.',
-        'ASK NEMI. A portfolio you talk to instead of read. Gemini embeddings over a personal knowledge base in '
-          + 'Supabase pgvector, hybrid retrieval, a confidence gate and streamed answers with citations.',
-        'PHISHGUARD V2. Phishing URL detection API: blocklist, allowlist, then a small model on MiniLM '
-          + 'embeddings plus 20 lexical features. 95.70% accuracy and 95.80% recall on a 1,000-URL holdout, '
-          + '37 tests.',
-        'FEATURE STORE MVP. An e-commerce feature store end to end: 23 user features, PostgreSQL offline and '
-          + 'Redis online, one user served in about 22 ms, drift dashboard, 174 tests at 95% coverage.',
-        'WASTE CLASSIFIER. Three CNNs benchmarked on TrashNet in PyTorch. ResNet50 won at 91.6% test accuracy '
-          + '(macro AUC 0.99) and runs the live demo with Grad-CAM.',
-        'ICEBERG. My 3D web CV: React Three Fiber, Blender assets through an agentic pipeline, real-time '
-          + 'refraction, and the Ask Nemi chat inside.',
+      heading: 'Projects',
+      summary: 'Things I built. The code for all of them is on github.com/ne-he.',
+      blocks: [
+        { label: 'VERDICT ANALYST', lines: [
+          'An AI data analyst you can ask questions about your data.',
+          'It writes and runs its own code inside a locked box (Docker sandbox).',
+          'Every number is calculated twice, two different ways (pandas and DuckDB SQL).',
+          'Cause-and-effect questions go to a statistics engine, never to the AI.',
+        ] },
+        { label: 'FINSIGHT V2', lines: [
+          'Answers questions about company annual reports (SEC 10-K filings).',
+          'Points to the exact section it used, or says it cannot answer.',
+          'Tested: right source found 18/18 (top 6), off-topic questions refused 4/4, zero wrong refusals.',
+        ] },
+        { label: 'ASK NEMI', lines: [
+          'A chatbot about me. You ask, instead of reading a CV.',
+          'It searches my own notes and shows where each answer came from.',
+          'Built with Gemini, Supabase pgvector, hybrid search and a confidence check.',
+        ] },
+        { label: 'PHISHGUARD V2', lines: [
+          'Checks whether a website link is a phishing scam.',
+          'Blocklist, allowlist, then a small AI model (MiniLM + 20 link features).',
+          'On 1,000 test links: 95.70% accuracy, 95.80% recall. 37 automated tests.',
+        ] },
+        { label: 'FEATURE STORE MVP', lines: [
+          'Keeps shopper data ready for AI models in an online store.',
+          '23 features per user, PostgreSQL for history and Redis for live use.',
+          'Serves one user in about 22 ms. Drift dashboard, 174 tests, 95% coverage.',
+        ] },
+        { label: 'WASTE CLASSIFIER', lines: [
+          'Sorts photos of trash by type.',
+          'Three image models compared on TrashNet in PyTorch.',
+          'ResNet50 won: 91.6% accuracy (macro AUC 0.99). The live demo shows where it looks (Grad-CAM).',
+        ] },
+        { label: 'ICEBERG', lines: [
+          'My 3D website CV.',
+          'React Three Fiber, Blender models made with an AI agent pipeline, real-time ice refraction.',
+          'The Ask Nemi chat is built in.',
+        ] },
       ],
       links: [
         { label: 'VERDICT', url: 'https://agentic-verdict-sand.vercel.app' },
@@ -149,9 +207,9 @@ export default {
 
 // Fakta pendek yang muncul saat bata igloo di-hover (src/scenes/igloo/BrickFacts.js). Semua dari kata-kata
 // Nehemiah sendiri atau profil yang sudah diverifikasi, jangan tambah fakta karangan (L9). Isinya yang
-// menggambarkan siapa dia saja (24 Okt 2026: IELTS dan DataHeist dibuang). Tiap fakta cuma muncul di SATU bata,
-// dipilih dari bata yang menghadap kamera titik istirahat dan disebar rata (facts.js). Bata lain tetap melayang
-// saat di-hover, tanpa label. ASCII saja, atlas font tidak punya simbol lain. Maks sekitar 24 huruf.
+// menggambarkan siapa dia saja (24 Okt 2026: IELTS dan DataHeist dibuang). 26 Okt 2026: 70 fakta = 70 bata, tiap
+// bata satu fakta unik. Urutan penting: fakta paling depan jatuh ke bata yang paling terlihat dari kamera (facts.js).
+// Blok kedua = jawaban Nehemiah sendiri di chat 26 Okt. ASCII saja, atlas font tidak punya simbol lain. Maks 24 huruf.
 export const iglooFacts = [
   'BINUSIAN 2028',
   'INDONESIAN',
@@ -165,4 +223,62 @@ export const iglooFacts = [
   'STORYTELLING COACH',
   'LEARNING MANDARIN',
   'GYM: PUSH / PULL / LEGS',
+  'PLAYS PIANO',
+  'MUSIC LOVER',
+  'MEAT LOVER',
+  'COFFEE PERSON',
+  'EDM ON REPEAT',
+  'FAV FILM: AGAK LAEN',
+  'PLAYS MOBILE LEGENDS',
+  'ALSO PLAYS BASKETBALL',
+  'FAV PLACE: HOME',
+  'DREAM TRIP: NORWAY',
+  'MOTTO: PAKE IMAN',
+  'FRIENDS SAY: SELAW',
+  'MORNING PERSON',
+  'FUTURE CEO',
+  'FIRST LANGUAGE: C',
+  'INTP',
+  'PYTHON + SQL',
+  'PYTORCH + TENSORFLOW',
+  'BUILT ASK NEMI CHATBOT',
+  'BUILT VERDICT ANALYST',
+  'PHISHGUARD: 95.7% ACC',
+  'FEATURE STORE: 22 MS',
+  'WASTE AI: 91.6% ACC',
+  'MADE ICEBERG 3D CV',
+  'FINSIGHT V2 BUILDER',
+  'KENNETH PARKING APP',
+  'NVIDIA DEEP LEARNING',
+  '45 SIGN-UPS IN A MONTH',
+  'COACHED FLS3N WINNERS',
+  '40 STUDENTS COACHED',
+  'HOPHOP 2024 INTERN',
+  'BNI CONFERENCE LO 2024',
+  'PRESENTS EVERY WEEK',
+  'N8N AUTOMATION',
+  'DOCKER + FASTAPI',
+  'RAG + GEMINI API',
+  'NEXT.JS + TYPESCRIPT',
+  'AGENTIC WORKFLOWS',
+  'BUILDS 3D WEBSITES',
+  'SHIP FAST, ITERATE',
+  'SEMESTER 5',
+  'MODEL CARDS + CI',
+  'REVOU: APPLIED AI',
+  'DSAREA: AI ENGINEERING',
+  'MYSKILL: DATA ANALYST',
+  'SCIKIT-LEARN + CATBOOST',
+  'PANDAS + POLARS + DUCKDB',
+  'MLFLOW + GITHUB ACTIONS',
+  'POSTGRES + REDIS',
+  'CHURN MODEL TO API',
+  'CREDIT SCORING API',
+  'NLP ON 617K REVIEWS',
+  'SWIFTUI NOTES APP',
+  'SECOND BRAIN CLI',
+  'JAKARTA AIR QUALITY AI',
+  '174 TESTS, 95% COVERAGE',
+  'OPEN TO INTERNSHIPS',
+  'GITHUB: NE-HE',
 ]
