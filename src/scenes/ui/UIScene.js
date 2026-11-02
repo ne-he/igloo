@@ -10,7 +10,6 @@ import { layoutText } from '../../text/layout.js'
 import { glyphTableTexture } from '../../text/textMaterial.js'
 import { computeUILayout, UI_RATIOS, UI_BREAKPOINTS } from './layout.js'
 import { FactLabel } from './FactLabel.js'
-import { FactCounter } from './FactCounter.js'
 import { ScrollCue } from './ScrollCue.js'
 import { SectionIndex } from './SectionIndex.js'
 import { ScrollGuide } from './ScrollGuide.js'
@@ -113,9 +112,7 @@ export class UIScene extends Scene {
     this.factLabel = new FactLabel(f)
     this.add(this.factLabel)
     bus.on('igloo_fact', (target) => this.factLabel.setTarget(target))
-    // penghitung "FOUND 3/12" kanan atas (FactCounter.js, dengar 'igloo_fact_found' sendiri)
-    this.factCounter = new FactCounter(f, { label: this.factLabel })
-    this.add(this.factCounter)
+    // Penghitung "FOUND 3/12" kanan atas (FactCounter.js) dibuang 26 Okt 2026, filenya disimpan tapi tidak dipasang.
 
     // Petunjuk scroll (Okt 2026): cue tengah bawah, indeks section kanan bawah, idle peek + lompat (ScrollGuide.js)
     this.scrollCue = new ScrollCue(f, c.ui.scrollCue)
@@ -193,7 +190,6 @@ export class UIScene extends Scene {
     this._layoutClose(width)
     this._layoutSound()
     this.factLabel.resize(width, height, L.sound.size)
-    this.factCounter.resize(width, height, L)
     // label fakta igloo tidak boleh menutup blok teks UI (kotak teks + 10 px)
     this.factLabel.avoid = this.blocks.map((m) => {
       const bx = m.box
@@ -384,7 +380,6 @@ export class UIScene extends Scene {
     this.speaker.visible = ss > 0
     // label fakta bata: posisi diproyeksikan dari kamera igloo yang sudah dirender frame ini
     this.factLabel.update(Math.min(0.1, (frame.delta || 16.667) / 1000), !this.detailMode)
-    this.factCounter.update(Math.min(0.1, (frame.delta || 16.667) / 1000), frame, this.introStarted && !this.detailMode)
     // Petunjuk scroll: guide memutuskan cue tampil / peek / item aktif, cue dan indeks menggambar dirinya.
     // Indeks tampil sesudah intro UI di semua scene, sembunyi selama detail proyek terbuka.
     const dt = Math.min(0.1, (frame.delta || 16.667) / 1000)
@@ -452,7 +447,7 @@ export class UIScene extends Scene {
       add('p', content.copyright.text.replace(/\n/g, ' '))
     }
     add('p', content.ui.scrollHint)
-    // teks cue scroll yang sedang tampil (ScrollGuide mengganti isinya: sentuh / semua fakta ketemu)
+    // teks cue scroll yang sedang tampil (ScrollGuide mengganti isinya untuk layar sentuh)
     const cue = document.createElement('p')
     cue.dataset.scrollCue = ''
     cue.setAttribute('aria-live', 'polite')

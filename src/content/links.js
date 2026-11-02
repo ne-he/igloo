@@ -4,14 +4,16 @@
 // Judul tampil lewat atlas MSDF yang cuma berisi ASCII cetak, jadi judul harus ASCII.
 //
 // Link asli Nehemiah (17 Okt 2026). WhatsApp (19 Okt 2026) sama dengan kontak di situs ICEBERG miliknya
-// (icev2/src/content.js, CONTACT.whatsapp). Link pertama = dirinya sendiri (avatar). Visit-nya membuka situs ini
+// (icev2/src/content.js, CONTACT.whatsapp). Link pertama = dirinya sendiri. Visit-nya membuka situs ini
 // lagi dari awal (24 Okt 2026), url relatif '/' supaya ikut domain apa pun tempat situs ini di-deploy.
+// Bentuknya monogram NWJ (Nehemiah Wilhelmus Junaidi) sejak 26 Okt 2026, menggantikan avatar dada generik
+// (nehemiah_64.vol, file lama tetap di disk tapi tidak dimuat lagi).
 const links = [
   {
     title: 'Nehemiah',
     url: '/',
-    volume: 'nehemiah_64',
-    scale: 1.15,
+    volume: 'nwj_64',
+    scale: 1.2, // lebar 0.93 di skala 1.2 = sekitar 0.5 unit dunia, masih di dalam silinder clamp sim (r 0.275)
   },
   {
     title: 'GitHub',

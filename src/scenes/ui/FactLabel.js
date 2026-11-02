@@ -66,7 +66,7 @@ export function factCardHeight(size, capHeight) {
 /**
  * Tata letak label dalam piksel CSS, y ke bawah (logika murni, dites di tests/facts.test.js).
  * Label ke kanan kalau side >= 0, ke kiri kalau side < 0. Sisi dibalik kalau sisi pilihan tidak muat di layar
- * atau menabrak salah satu kotak `avoid` (blok teks UI: logo, copyright, hint, sound, penghitung) sementara sisi
+ * atau menabrak salah satu kotak `avoid` (blok teks UI: logo, copyright, sound, cue scroll, indeks) sementara sisi
  * lawannya bersih. Terakhir kotak dijepit ke dalam layar.
  * textHeight = tinggi isi kartu (px, factCardHeight), default satu baris huruf kapital (capHeight x size).
  * @returns {{side, anchor, elbow, end, box: {x0, y0, x1, y1}, textX, top, baseline}}
@@ -134,7 +134,7 @@ void main() {
 }
 `
 
-/** Pelat bayangan lembut (dipakai kartu fakta dan penghitung FactCounter.js, satu program shader). */
+/** Pelat bayangan lembut (dipakai kartu fakta, dulu juga penghitung FactCounter.js yang sudah tidak dipasang). */
 export function createPlate(name) {
   const plate = new Mesh(new PlaneGeometry(1, 1), new ShaderMaterial({
     uniforms: {
@@ -184,7 +184,6 @@ export class FactLabel extends Group {
     this.height = 1
     this.size = 12
     this.avoid = [] // kotak blok teks UI (px, y ke bawah) yang tidak boleh ditutup label
-    this.avoidExtra = [] // kotak tambahan yang berubah tiap frame (penghitung FactCounter saat tampil)
     this.target = null // target aktif (null = sedang pudar / tidak ada)
     this.last = null // target terakhir, posisinya tetap diikuti selama pudar
     this.show1 = 0 // reveal kepala + pelat
@@ -326,8 +325,7 @@ export class FactLabel extends Group {
     const cap = this.font.capHeight
     const lay = factLabelLayout({
       x: ax, y: ay, side: this._side, textWidth: Math.max(this.text.layout.width, this.header.layout.width),
-      textHeight: factCardHeight(s, cap), size: s, width: W, height: H,
-      avoid: this.avoidExtra.length ? this.avoid.concat(this.avoidExtra) : this.avoid,
+      textHeight: factCardHeight(s, cap), size: s, width: W, height: H, avoid: this.avoid,
     })
     this.layoutResult = lay
     this._side = lay.side // sisi yang sudah dibalik jadi pilihan baru (tidak bolak-balik di batas)

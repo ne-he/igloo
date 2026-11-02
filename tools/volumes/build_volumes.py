@@ -3,7 +3,10 @@
 Pakai:  python tools/volumes/build_volumes.py [--res 64] [--only github,linkedin] [--out DIR] [--preview]
 
 Bentuk (ruang koordinat = uvw volume 0..1, pusat 0.5, y ke atas, jarak dalam satuan uvw):
-  - nehemiah: avatar dada 3D generik (kepala bulat, leher, bahu), tanpa ciri wajah
+  - nwj     : monogram NWJ (inisial Nehemiah Wilhelmus Junaidi), huruf sans kondensed tebal yang disusun sendiri
+              dari pita lurus dan kotak SDF 2D (tanpa file font), diekstrusi jadi lempeng. Link pertama sejak 26 Okt 2026.
+  - nehemiah: avatar dada 3D generik (kepala bulat, leher, bahu), tanpa ciri wajah. Tidak dipakai links.js lagi
+              sejak 26 Okt 2026 (diganti nwj), fungsi dan file nehemiah_64.vol sengaja disimpan
   - github  : GitHub mark resmi (Invertocat di lingkaran), dari path simple-icons (data path CC0), diekstrusi.
               Kucingnya ruang kosong (dilubangi tembus), sama seperti logo aslinya.
   - linkedin: lempeng persegi membulat dengan huruf "in" tebal dilubangi tembus (gaya ikon LinkedIn, huruf
@@ -134,6 +137,88 @@ def shape_nehemiah(p):
     return smin(d, torso, 0.07)
 
 
+# Monogram NWJ (26 Okt 2026). Huruf digambar sendiri: batang = kotak, garis miring = pita lurus yang dipotong rata di
+# garis atas dan garis dasar. Lebar total dibatasi silinder clamp sim (PARTICLES.radius 0.275 dunia = sekitar 0.5
+# satuan bentuk di skala 1.2), jadi hurufnya kondensed: tinggi 0.7, lebar total 0.93. W klasik 4 garis dengan puncak
+# tengah dipotong rendah (0.65 tinggi) dan garis dalam lebih tipis, supaya celah atasnya tetap terbuka di resolusi
+# volume 64 (celah tersempit sekitar 3 voxel). Varian lain (W bertiang |/\|, J bertopi, huruf 0.09) dibandingkan
+# dulu lewat render 2D, yang ini paling jelas terbaca sebagai N, W, J.
+# Isi volume: huruf jauh lebih sedikit luasnya dari lempeng LinkedIn. Tinggi 0.6 + tebal 0.2 cuma 5.6% voxel, jadi
+# huruf ditinggikan ke 0.7 dan lempeng ditebalkan ke 0.22 (7.5%, target sekitar 8%). Tebal 0.24 memberi 8.3% tapi
+# dinding dalam celah huruf makin menutup celah saat bentuk berputar.
+NWJ = dict(
+    cap=0.7,  # tinggi huruf kapital
+    stem=0.078,  # tebal batang tegak N dan J
+    diag=0.082,  # lebar horizontal garis miring N dan garis luar W
+    w_inner=0.068,  # lebar horizontal dua garis dalam W
+    gap=0.035,  # jarak antar huruf
+    n=0.25, w=0.40, j=0.21,  # lebar huruf
+    w_apex=0.65,  # puncak tengah W, porsi tinggi huruf dari garis dasar
+    w_foot=0.27,  # tengah kaki W di garis dasar, porsi lebar W dari tepi
+    half=0.11,  # setengah tebal lempeng (tebal 0.22, sedikit di atas GitHub/LinkedIn 0.18, lihat catatan isi di atas)
+    round=0.03,  # pembulatan tepi lempeng, sama dengan logo lain
+)
+
+
+def band(x, y, a, b, w):
+    """Pita lurus tak berujung lewat titik a dan b (2D), lebar HORIZONTAL w (bukan tegak lurus pita)."""
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    ln = np.hypot(dx, dy)
+    nx, ny = dy / ln, -dx / ln
+    return np.abs((x - a[0]) * nx + (y - a[1]) * ny) - 0.5 * w * abs(nx)
+
+
+def glyph_n(x, y, x0, P):
+    """N: dua batang + garis miring kiri atas ke kanan bawah, dipotong rata atas bawah."""
+    H, S, D = P['cap'] / 2, P['stem'], P['diag']
+    x1 = x0 + P['n']
+    stems = np.minimum(sd_box2(x, y, x0 + S / 2, 0, S / 2, H), sd_box2(x, y, x1 - S / 2, 0, S / 2, H))
+    diag = np.maximum(band(x, y, (x0 + D / 2, H), (x1 - D / 2, -H), D), np.abs(y) - H)
+    return np.minimum(stems, diag)
+
+
+def glyph_w(x, y, x0, P):
+    """W klasik: dua garis luar dari sudut atas ke kaki, dua garis dalam dari kaki ke puncak tengah yang rendah."""
+    H, D, Di, ww = P['cap'] / 2, P['diag'], P['w_inner'], P['w']
+    x1 = x0 + ww
+    cx = (x0 + x1) / 2
+    ya = -H + P['w_apex'] * 2 * H
+    fl = x0 + ww * P['w_foot']
+    fr = x1 - ww * P['w_foot']
+    outer = np.minimum(band(x, y, (x0 + D / 2, H), (fl, -H), D), band(x, y, (fr, -H), (x1 - D / 2, H), D))
+    inner = np.minimum(band(x, y, (fl, -H), (cx, ya), Di), band(x, y, (cx, ya), (fr, -H), Di))
+    outer = np.maximum(outer, np.abs(y) - H)
+    inner = np.maximum(inner, np.maximum(-H - y, y - ya))  # puncak tengah dipotong rata
+    return np.minimum(outer, inner)
+
+
+def glyph_j(x, y, x0, P):
+    """J: batang kanan dari garis atas, mangkuk setengah lingkaran di bawah yang berakhir rata di kiri."""
+    H, S = P['cap'] / 2, P['stem']
+    R = P['j'] / 2
+    cx, cy = x0 + R, -H + R
+    stem = sd_box2(x, y, x0 + P['j'] - S / 2, (cy + H) / 2, S / 2, (H - cy) / 2)
+    r = np.sqrt((x - cx) ** 2 + (y - cy) ** 2)
+    bowl = np.maximum(np.abs(r - (R - S / 2)) - S / 2, y - cy)
+    return np.minimum(stem, bowl)
+
+
+def nwj_2d(x, y, P=NWJ):
+    """SDF 2D huruf N, W, J berjajar, dipusatkan di x = 0 dan y = 0."""
+    x0 = -(P['n'] + P['w'] + P['j'] + 2 * P['gap']) / 2
+    d = glyph_n(x, y, x0, P)
+    x0 += P['n'] + P['gap']
+    d = np.minimum(d, glyph_w(x, y, x0, P))
+    x0 += P['w'] + P['gap']
+    return np.minimum(d, glyph_j(x, y, x0, P))
+
+
+def shape_nwj(p):
+    """Monogram NWJ: huruf tebal diekstrusi jadi lempeng setebal 0.22, muka huruf di bidang XY seperti logo lain."""
+    x, y, z = p[..., 0], p[..., 1], p[..., 2]
+    return extrude(nwj_2d(x, y), z, NWJ['half'], NWJ['round'])
+
+
 def shape_github(p):
     """GitHub mark: cakram setebal 0.18 dengan siluet kucing dilubangi tembus (path resmi)."""
     x, y, z = p[..., 0], p[..., 1], p[..., 2]
@@ -192,7 +277,8 @@ def shape_email(p):
 
 
 SHAPES = {
-    'nehemiah': shape_nehemiah,
+    'nwj': shape_nwj,
+    'nehemiah': shape_nehemiah,  # lama, tidak dipakai links.js (lihat docstring)
     'github': shape_github,
     'linkedin': shape_linkedin,
     'whatsapp': shape_whatsapp,

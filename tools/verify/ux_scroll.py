@@ -5,8 +5,9 @@ Butuh dev server jalan (sebaiknya tanpa HMR, supaya edit agent lain tidak me-rel
 Output: tools/verify/out/<tag>_*.png (layar penuh) dan <tag>_*_zoom.png (potongan cue / indeks diperbesar 2x).
 
 Halaman dimuat seperti pengunjung biasa: TANPA __igloo.setScroll / enableScroll (dua-duanya dihitung "sudah
-berinteraksi" dan mematikan peek). __igloo cuma dipakai untuk MEMBACA state, plus satu emit event bus untuk hook
-fakta igloo.
+berinteraksi" dan mematikan peek). __igloo cuma dipakai untuk MEMBACA state, plus emit event bus lama
+'igloo_facts_complete' untuk memastikan hook ALL FOUND sudah benar-benar dibuang (26 Okt 2026, bersama penghitung
+fakta igloo).
 
 Langkah (1024x768, mouse):
   1. intro jalan sendiri, cue SCROLL TO ENTER muncul sesudah intro UI, indeks section tampil. Screenshot + zoom.
@@ -14,10 +15,10 @@ Langkah (1024x768, mouse):
      lalu kembali ke titik istirahat. Peek kedua jalan, peek ketiga tidak (maks 2) kecuali --quick.
   3. satu wheel mouse sungguhan: cue pudar, peek mati.
   4. klik 02 / 03 / 01 di indeks: scene berganti ke kristal / ruang link / igloo, item aktif ikut.
-     Hook fakta saat di luar igloo tidak mengubah teks cue.
+     Event lama 'igloo_facts_complete' saat di luar igloo tidak mengubah teks cue.
   5. kembali di igloo dan diam: cue muncul lagi.
-  6. emit 'igloo_facts_complete': teks cue jadi ALL FOUND. NOW SCROLL dan berkedip. Screenshot.
-Lalu 1440x900 (screenshot cue + indeks) dan 375x812 sentuh (SWIPE UP TO ENTER, hook fakta versi sentuh,
+  6. emit event lama 'igloo_facts_complete' di igloo: teks cue TETAP SCROLL TO ENTER (hook dibuang). Screenshot.
+Lalu 1440x900 (screenshot cue + indeks) dan 375x812 sentuh (SWIPE UP TO ENTER, event fakta lama tidak mengubah teks,
 swipe sungguhan lewat CDP membuat cue pudar, tap 02 pindah ke kristal).
 Selalu: kumpulkan error console + pageerror.
 """
@@ -233,7 +234,7 @@ def desktop(browser, args, errors, w=1024, h=768, tag=None, full=True):
     page.evaluate(EMIT_FACTS_JS)
     page.wait_for_timeout(300)
     g = guide(page)
-    check('hook fakta di luar igloo: teks cue tetap', g['cueText'] == 'SCROLL TO ENTER' and not g['cueVisible'], f'"{g["cueText"]}"')
+    check('event fakta lama di luar igloo: teks cue tetap', g['cueText'] == 'SCROLL TO ENTER' and not g['cueVisible'], f'"{g["cueText"]}"')
     jump_and_check(page, tag, 2, 'entry', 9.29)
     jump_and_check(page, tag, 0, 'igloo', 0.658)
 
@@ -246,15 +247,13 @@ def desktop(browser, args, errors, w=1024, h=768, tag=None, full=True):
         back = False
     check('kembali ke igloo lalu diam: cue muncul lagi', back, json.dumps({k: guide(page)[k] for k in ('cueVisible', 'dismissed', 'n')}))
 
-    # 6. semua fakta ketemu
+    # 6. event lama "semua fakta ketemu": hook ALL FOUND sudah dibuang, teks cue tidak berubah
     page.evaluate(EMIT_FACTS_JS)
-    page.wait_for_timeout(250)
-    mid = shot(page, tag, 'facts_blink', ('cue',))
-    page.wait_for_timeout(1200)
+    page.wait_for_timeout(1450)
     g = guide(page)
     path = shot(page, tag, 'facts', ('cue',))
-    check('igloo_facts_complete: ALL FOUND. NOW SCROLL', g['cueText'] == 'ALL FOUND. NOW SCROLL' and g['cueVisible'],
-          f'"{g["cueText"]}"  {mid}  {path}')
+    check('event lama igloo_facts_complete di igloo: cue tetap SCROLL TO ENTER', g['cueText'] == 'SCROLL TO ENTER' and g['cueVisible']
+          and 'factsComplete' not in [e['what'] for e in g['log']], f'"{g["cueText"]}"  {path}')
     fps = page.evaluate('__igloo.state().fps')
     print(f'FPS akhir {w}x{h}: {fps:.1f}')
     ctx.close()
@@ -288,12 +287,12 @@ def mobile(browser, args, errors):
     labels = page.evaluate('__igloo.engine.ui.sectionIndex.items.map((t) => t.text)')
     check('375x812 sentuh: SWIPE UP TO ENTER, indeks ringkas', g['cueText'] == 'SWIPE UP TO ENTER' and g['touch'] and labels == ['01', '02', '03'],
           f'"{g["cueText"]}" indeks {labels}  {path}')
-    # hook fakta versi sentuh (masih di igloo, belum scroll)
+    # event fakta lama versi sentuh (masih di igloo, belum scroll): teks tidak berubah
     page.evaluate(EMIT_FACTS_JS)
     page.wait_for_timeout(1400)
     g = guide(page)
     path = shot(page, tag, 'facts', ('cue',))
-    check('375x812: igloo_facts_complete -> ALL FOUND. NOW SWIPE UP', g['cueText'] == 'ALL FOUND. NOW SWIPE UP' and g['cueVisible'],
+    check('375x812: event lama igloo_facts_complete -> cue tetap SWIPE UP TO ENTER', g['cueText'] == 'SWIPE UP TO ENTER' and g['cueVisible'],
           f'"{g["cueText"]}"  {path}')
     # swipe ke atas sungguhan (event sentuh CDP): cue pudar, scroll maju
     n0 = scroll_state(page)['n']

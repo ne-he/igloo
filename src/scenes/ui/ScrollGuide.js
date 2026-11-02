@@ -5,9 +5,10 @@ import { IdlePeek, PEEK, CueGate, loopDistance } from './idlePeek.js'
 import { sectionRests, activeSection, planSectionJump } from './sectionNav.js'
 import content from '../../content/content.js'
 
-// Pengatur petunjuk scroll (tanpa mesh sendiri): cue SCROLL TO ENTER, idle peek kamera, lompat indeks section,
-// dan hook semua fakta igloo ketemu. Dipanggil UIScene tiap frame. Logika keputusannya murni di idlePeek.js dan
-// sectionNav.js (dites), file ini cuma menyambungkannya ke Scroll, bus, dan gsap.
+// Pengatur petunjuk scroll (tanpa mesh sendiri): cue SCROLL TO ENTER, idle peek kamera, lompat indeks section.
+// Dipanggil UIScene tiap frame. Logika keputusannya murni di idlePeek.js dan sectionNav.js (dites), file ini cuma
+// menyambungkannya ke Scroll, bus, dan gsap. Hook "semua fakta igloo ketemu" (teks ALL FOUND) dibuang 26 Okt 2026
+// bersama penghitung fakta, event 'igloo_facts_complete' tidak dipancarkan lagi.
 //
 // Gerak scroll milik guide (peek, lompat) memakai pola yang sama dengan DetailController: tween gsap dipasang di
 // scroll.centering, jadi Scroll.update berhenti me-lerp, input pengguna (addDelta -> stopAutoCenter) langsung
@@ -48,8 +49,6 @@ export class ScrollGuide {
     this.target = -1 // section tujuan lompat yang sedang berjalan
     this.active = 0
     this.cueVisible = false
-    this.factsDone = false
-    this.factsLeft = false // sudah keluar dari igloo sejak semua fakta ketemu (teks kembali normal)
     this.reducedMq = media('(prefers-reduced-motion: reduce)')
     this.touch = !!media('(pointer: coarse)')?.matches
     this.log = [] // jejak keputusan untuk verifikasi (dibatasi)
@@ -69,8 +68,6 @@ export class ScrollGuide {
     bus.on('pointer_down', (input) => {
       if (input.pointerType === 'touch' || input.pointerType === 'pen') this._setTouch(true)
     })
-    // hook penghitung fakta igloo (agent fakta): semua ketemu, ajak scroll
-    bus.on('igloo_facts_complete', () => this._factsComplete())
   }
 
   get reduced() {
@@ -90,10 +87,7 @@ export class ScrollGuide {
 
   _applyText() {
     const ui = content.ui
-    const done = this.factsDone && !this.factsLeft
-    const str = done
-      ? (this.touch ? ui.scrollCueDoneTouch : ui.scrollCueDone)
-      : (this.touch ? ui.scrollCueTouch : ui.scrollCue)
+    const str = this.touch ? ui.scrollCueTouch : ui.scrollCue
     this.cue.setText(str)
     this.cue.up = this.touch // segmen naik searah swipe, turun searah wheel
     if (typeof document !== 'undefined') {
@@ -130,18 +124,6 @@ export class ScrollGuide {
     this.gate.input()
     // wheel saat scroll terkunci (intro, detail) tidak menggerakkan apa pun, jadi belum dihitung
     if (this.engine.scroll.enabled) this._interacted(kind)
-  }
-
-  _factsComplete() {
-    const st = this.engine.scroll.state
-    if (st.current.key !== 'igloo' || st.next) return
-    this.factsDone = true
-    this.factsLeft = false
-    this._applyText()
-    this.gate.show()
-    this._note('factsComplete')
-    // pulsa sesudah reveal teks baru mulai, supaya kedipnya terlihat
-    gsap.delayedCall(this.cueVisible ? 0 : 0.45, () => this.cue.pulse())
   }
 
   /** Lompat ke titik istirahat section i (klik indeks / tombol a11y). */
@@ -242,10 +224,6 @@ export class ScrollGuide {
     const dist = loopDistance(s.y, this.start, s.total)
     const ownMotion = !!this.motion
     const moving = (!ownMotion && s.velocity > 0) || (!!s.centering && !ownMotion)
-    if (this.factsDone && !inIgloo && !this.factsLeft) {
-      this.factsLeft = true
-      this._applyText()
-    }
 
     // cue
     this.cue.reduced = this.reduced

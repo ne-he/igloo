@@ -1,7 +1,7 @@
 import { Raycaster, Vector2, Vector3, Matrix4, Ray, Sphere, DoubleSide } from 'three'
 import { MeshBVH } from 'three-mesh-bvh'
 import { bus } from '../../engine/Bus.js'
-import { assignUniqueFacts, FactTracker, Glimmer } from './facts.js'
+import { assignUniqueFacts, FactTracker, Glimmer, glimmerCandidates } from './facts.js'
 
 // Fakta di bata igloo: hover (mouse) atau tap (sentuh) satu bata, bata itu melayang sedikit (Bricks.hovered,
 // HOVER_LIFT) dan label MSDF pendek muncul di scene UI (src/scenes/ui/FactLabel.js).
@@ -9,10 +9,11 @@ import { assignUniqueFacts, FactTracker, Glimmer } from './facts.js'
 //   'igloo_fact' { index, text, fact, number, total, anchor, camera }  anchor = Vector3 hidup (b.anchor),
 //                                                  diproyeksikan UI tiap frame. number = urutan fakta (1..total)
 //   'igloo_fact' null                              label pudar
-//   'igloo_fact_found' { fact, count, total }      fakta baru ditemukan (label tampil foundDwell detik), sekali per fakta
-//   'igloo_facts_complete'                         semua fakta ditemukan, dipancarkan tepat sekali per sesi
-// Kilau petunjuk: satu bata berfakta yang belum ditemukan menyala biru tiap beberapa detik (facts.js Glimmer),
-// ditulis ke bricks.glimmer lalu dibaca Bricks.update.
+//   'igloo_fact_found' { fact, count, total }      kartu fakta baru dibuka (tampil foundDwell detik), sekali per fakta
+// Penghitung FOUND n/12 dan event 'igloo_facts_complete' dibuang 26 Okt 2026: nanti tiap bata punya fakta (70),
+// jadi "menemukan semua" bukan lagi tujuan.
+// Kilau ajakan: satu bata berfakta acak (bukan yang di-hover) menyala biru tiap beberapa detik sampai pengunjung
+// membuka 3 kartu berbeda (facts.js Glimmer + glimmerCandidates), ditulis ke bricks.glimmer lalu dibaca Bricks.update.
 // Raycast: bola pembatas per bata dulu, lalu BVH per geometri bata (three-mesh-bvh, mode indirect supaya
 // index geometri tidak diubah) di ruang lokal bata. Hanya aktif di sekitar titik istirahat igloo, tidak
 // saat intro, tidak saat detail proyek terbuka.
@@ -30,7 +31,7 @@ export const FACTS = {
   moveWindow: 0.15,
   nearRadius: 1.6,
   tapHold: 4, // detik, label hasil tap di layar sentuh bertahan selama ini
-  foundDwell: 0.3, // detik, label fakta harus tampil selama ini sebelum dihitung ditemukan (sapuan kursor tidak dihitung)
+  foundDwell: 0.3, // detik, label fakta harus tampil selama ini sebelum dihitung dibuka (sapuan kursor tidak dihitung)
   restCamera: [-13.49, 2.65, 14.43], // posisi kamera di titik istirahat (IglooScene), bata berfakta dipilih yang menghadap ke sini
 }
 
@@ -71,7 +72,8 @@ export class BrickFacts {
     const [vx, vy, vz] = FACTS.restCamera
     this.assignment = assignUniqueFacts(list.map((b) => b.centroid.clone().applyMatrix4(world)), this.facts.length, { x: vx, y: vy, z: vz })
     for (const b of list) b.bvh = new MeshBVH(b.geometry, { indirect: true })
-    // bata berfakta, urut indeks bata (kandidat kilau)
+    // bata berfakta, urut indeks bata (kandidat kilau). Total di kepala kartu = jumlah fakta yang kebagian bata
+    // (70 fakta di 70 bata = FACT 05/70, fakta lebih dari jumlah bata tidak tampil)
     this.factBricks = this.assignment.map((f, i) => (f >= 0 ? i : -1)).filter((i) => i >= 0)
     this.tracker = new FactTracker(Math.min(this.facts.length, this.factBricks.length))
     this.glimmer = new Glimmer()
@@ -142,7 +144,7 @@ export class BrickFacts {
     this._updateFound(dt)
   }
 
-  /** Label fakta yang sudah tampil foundDwell detik = fakta ditemukan (sekali per fakta). */
+  /** Label fakta yang sudah tampil foundDwell detik = kartu fakta dibuka (sekali per fakta). */
   _updateFound(dt) {
     const f = this.current >= 0 ? this.assignment[this.current] : -1
     if (f < 0 || this.tracker.has(f)) return
@@ -151,12 +153,17 @@ export class BrickFacts {
     const r = this.tracker.mark(f)
     if (!r.isNew) return
     bus.emit('igloo_fact_found', { fact: f, count: r.count, total: r.total })
-    if (r.justCompleted) bus.emit('igloo_facts_complete')
   }
 
-  /** Kilau biru di bata berfakta yang belum ditemukan, hanya saat hover fakta aktif. Berhenti kalau semua ketemu. */
+  /**
+   * Kilau ajakan di bata berfakta acak (bukan yang di-hover, bukan yang kartunya sudah dibuka), hanya saat hover
+   * fakta aktif (titik istirahat, bukan intro). Berhenti setelah GLIMMER.stopAfter kartu berbeda dibuka.
+   */
   _updateGlimmer(dt, on) {
-    const cand = on ? this.factBricks.filter((i) => i !== this.current && !this.tracker.has(this.assignment[i])) : []
+    const t = this.tracker
+    const cand = on
+      ? glimmerCandidates(this.factBricks, { current: this.current, opened: t.count, isOpened: (i) => t.has(this.assignment[i]) })
+      : []
     const g = this.glimmer.update(dt, on, cand)
     this.bricks.glimmer.index = g.index
     this.bricks.glimmer.amount = g.amount

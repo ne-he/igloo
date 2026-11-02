@@ -1,10 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
-  assignUniqueFacts, factNumber, counterText, FactTracker, Glimmer, GLIMMER, glimmerEnvelope,
+  assignUniqueFacts, facingScores, factNumber, FactTracker, Glimmer, GLIMMER, glimmerEnvelope, glimmerCandidates,
 } from '../src/scenes/igloo/facts.js'
 import { factLabelLayout, FACT_LABEL, factHeader, factCardHeight } from '../src/scenes/ui/FactLabel.js'
-import { factCounterLayout, tickSpans } from '../src/scenes/ui/FactCounter.js'
-import content, { iglooFacts } from '../src/content/content.js'
+import { iglooFacts } from '../src/content/content.js'
 
 // Kubah tiruan mirip igloo: cincin bata dari bawah ke atas, jumlah per cincin mengecil, total 70.
 function dome() {
@@ -22,12 +21,18 @@ function dome() {
   return pts
 }
 
+// Daftar palsu 70 fakta (satu per bata). content.js dipegang lead dan sekarang baru berisi 12 fakta.
+const FAKE70 = Array.from({ length: 70 }, (_, i) => `Fact number ${i + 1}`)
+// Jumlah fakta untuk tes sebaran bata depan (jumlah lama)
+const FEW = 12
+
 describe('fakta bata igloo', () => {
   // kamera titik istirahat (BrickFacts FACTS.restCamera)
   const view = { x: -13.49, y: 2.65, z: 14.43 }
 
-  it('daftar fakta: ASCII cetak saja, pendek, tidak ada duplikat, tanpa IELTS', () => {
+  it('daftar fakta: ASCII cetak saja, pendek, tidak ada duplikat, tanpa IELTS, paling banyak satu per bata', () => {
     expect(iglooFacts.length).toBeGreaterThanOrEqual(8)
+    expect(iglooFacts.length).toBeLessThanOrEqual(70)
     expect(new Set(iglooFacts).size).toBe(iglooFacts.length)
     for (const f of iglooFacts) {
       expect(f).toMatch(/^[ -~]+$/)
@@ -45,9 +50,9 @@ describe('fakta bata igloo', () => {
     expect(out.filter((f) => f < 0).length).toBe(pts.length - iglooFacts.length)
   })
 
-  it('bata berfakta menghadap kamera dan tersebar (tidak bergerombol)', () => {
+  it('sedikit fakta (12): bata berfakta menghadap kamera dan tersebar (tidak bergerombol)', () => {
     const pts = dome()
-    const out = assignUniqueFacts(pts, iglooFacts.length, view)
+    const out = assignUniqueFacts(pts, FEW, view)
     const chosen = pts.filter((_, i) => out[i] >= 0)
     const len = Math.hypot(view.x, view.z)
     for (const p of chosen) {
@@ -70,6 +75,57 @@ describe('fakta bata igloo', () => {
     expect(assignUniqueFacts(pts, 0, view).every((f) => f === -1)).toBe(true)
     const many = assignUniqueFacts(pts, 60, view).filter((f) => f >= 0)
     expect(new Set(many).size).toBe(60)
+    // fakta lebih banyak dari bata: tiap bata satu, sisanya tidak tampil
+    const over = assignUniqueFacts(pts, 80, view)
+    expect(over.every((f) => f >= 0 && f < 80)).toBe(true)
+    expect(new Set(over).size).toBe(pts.length)
+  })
+})
+
+describe('70 fakta untuk 70 bata (daftar palsu)', () => {
+  const view = { x: -13.49, y: 2.65, z: 14.43 }
+  const pts = dome()
+  const out = assignUniqueFacts(pts, FAKE70.length, view)
+  const facing = facingScores(pts, view)
+  const brickOf = (f) => out.indexOf(f)
+
+  it('tiap bata tepat satu fakta, tiap fakta tepat satu bata', () => {
+    expect(pts.length).toBe(70)
+    expect(out.every((f) => f >= 0)).toBe(true)
+    expect([...out].sort((a, b) => a - b)).toEqual(FAKE70.map((_, i) => i))
+  })
+
+  it('fakta pertama di bata yang paling menghadap kamera, fakta awal mengisi semua bata depan dulu', () => {
+    const best = facing.reduce((a, v, i) => (v > facing[a] ? i : a), 0)
+    expect(brickOf(0)).toBe(best)
+    const front = pts.map((_, i) => i).filter((i) => facing[i] >= 0.5)
+    expect(front.length).toBeGreaterThanOrEqual(FEW)
+    expect(front.length).toBeLessThan(70)
+    const firstK = new Set(Array.from({ length: front.length }, (_, f) => brickOf(f)))
+    expect(firstK).toEqual(new Set(front))
+    // lapis menghadap (ambang 0.5, 0.4, ...) tidak pernah naik lagi sepanjang urutan fakta
+    const tier = (i) => (facing[i] >= 0.5 ? 0 : Math.ceil((0.5 - facing[i]) / 0.1 - 1e-9))
+    const tiers = FAKE70.map((_, f) => tier(brickOf(f)))
+    for (let f = 1; f < tiers.length; f++) expect(tiers[f]).toBeGreaterThanOrEqual(tiers[f - 1])
+    // 12 fakta pertama jauh lebih menghadap dari 12 terakhir (bata belakang kubah)
+    const mean = (fs) => fs.reduce((a, f) => a + facing[brickOf(f)], 0) / fs.length
+    expect(mean([...Array(12).keys()])).toBeGreaterThan(0.6)
+    expect(mean([...Array(12).keys()].map((k) => 69 - k))).toBeLessThan(-0.3)
+  })
+
+  it('fakta lama tidak pindah bata saat daftar bertambah dari 12 ke 70', () => {
+    const few = assignUniqueFacts(pts, FEW, view)
+    few.forEach((f, i) => {
+      if (f >= 0) expect(out[i]).toBe(f)
+    })
+  })
+
+  it('kepala kartu memakai total asli: FACT 05/70', () => {
+    // BrickFacts: total = min(jumlah fakta, bata berfakta)
+    const total = Math.min(FAKE70.length, out.filter((f) => f >= 0).length)
+    expect(total).toBe(70)
+    expect(factHeader(5, total)).toBe('FACT 05/70')
+    expect(factHeader(70, total)).toBe('FACT 70/70')
   })
 })
 
@@ -119,9 +175,7 @@ describe('tata letak label fakta', () => {
   })
 })
 
-describe('kartu fakta dan penghitung: teks', () => {
-  const strings = content.ui.facts
-
+describe('kartu fakta: teks', () => {
   it('kepala kartu: nomor fakta dua digit, ASCII', () => {
     expect(factNumber(3, 12)).toBe('03/12')
     expect(factNumber(12, 12)).toBe('12/12')
@@ -129,16 +183,11 @@ describe('kartu fakta dan penghitung: teks', () => {
     expect(factHeader(3, 12)).toBe('FACT 03/12')
     expect(factHeader(0, 12)).toBe('')
     expect(factHeader(1, iglooFacts.length)).toMatch(/^[ -~]+$/)
-  })
-
-  it('penghitung: FOUND n/total, selesai ALL total FOUND, semua ASCII', () => {
-    expect(counterText(3, 12, strings)).toBe('FOUND 3/12')
-    expect(counterText(12, 12, strings)).toBe('ALL 12 FOUND')
-    for (let n = 0; n <= iglooFacts.length; n++) expect(counterText(n, iglooFacts.length, strings)).toMatch(/^[ -~]+$/)
+    expect(factHeader(5, 70)).toBe('FACT 05/70')
   })
 })
 
-describe('hitungan fakta ditemukan', () => {
+describe('hitungan kartu fakta dibuka', () => {
   it('tiap fakta dihitung sekali, ulang tidak menambah', () => {
     const t = new FactTracker(12)
     expect(t.mark(4)).toEqual({ isNew: true, count: 1, total: 12, justCompleted: false })
@@ -209,6 +258,49 @@ describe('kilau petunjuk', () => {
     expect(log.filter(([t, idx]) => t > 10 + GLIMMER.duration + 0.05 && idx >= 0).length).toBe(0)
   })
 
+  it('kandidat ajakan: bata berfakta selain yang di-hover dan yang sudah dibuka, kosong setelah 3 kartu', () => {
+    const all = FAKE70.map((_, i) => i)
+    expect(GLIMMER.stopAfter).toBe(3)
+    expect(glimmerCandidates(all)).toEqual(all)
+    const c = glimmerCandidates(all, { current: 5 })
+    expect(c.length).toBe(69)
+    expect(c).not.toContain(5)
+    const opened = new Set([9, 40])
+    const c2 = glimmerCandidates(all, { current: 5, opened: opened.size, isOpened: (i) => opened.has(i) })
+    expect(c2.length).toBe(67)
+    for (const i of [5, 9, 40]) expect(c2).not.toContain(i)
+    expect(glimmerCandidates(all, { opened: 3 })).toEqual([])
+    expect(glimmerCandidates(all, { opened: 7 })).toEqual([])
+  })
+
+  it('70 bata berfakta: kilau acak jalan sampai kartu ke-3 dibuka, tidak pernah di bata yang di-hover', () => {
+    const all = FAKE70.map((_, i) => i)
+    // pengunjung membuka kartu bata 10 (detik 5 sampai 9), 20 (12 sampai 16), 30 (19 sampai 23)
+    const visits = [[5, 9, 10], [12, 16, 20], [19, 23, 30]]
+    const opened = new Set()
+    const g = new Glimmer()
+    const dt = 1 / 60
+    const log = []
+    let prev = -1
+    for (let i = 0; i < 40 / dt; i++) {
+      const t = i * dt
+      const v = visits.find(([a, b]) => t >= a && t < b)
+      const current = v ? v[2] : -1
+      if (v && t >= v[0] + 0.3) opened.add(current) // terhitung dibuka sesudah foundDwell
+      g.update(dt, true, glimmerCandidates(all, { current, opened: opened.size, isOpened: (b) => opened.has(b) }))
+      if (g.index >= 0 && g.index !== prev) log.push([t, g.index, current, opened.size])
+      prev = g.index
+    }
+    expect(log.length).toBeGreaterThanOrEqual(3)
+    for (const [, idx, current, n] of log) {
+      expect(idx).not.toBe(current)
+      expect(n).toBeLessThan(3)
+    }
+    // tidak ada kilau baru sesudah kartu ke-3 dibuka (detik 19.3), yang sedang jalan habis dalam duration
+    expect(log.every(([t]) => t < 19.3 + 1e-9)).toBe(true)
+    expect(g.index).toBe(-1)
+  })
+
   it('dimatikan di tengah kilau: pudar cepat, jadwal mulai lagi dari awal', () => {
     const g = new Glimmer()
     run(g, GLIMMER.first + 0.5, [5])
@@ -220,7 +312,7 @@ describe('kilau petunjuk', () => {
   })
 })
 
-describe('tata letak kartu dan penghitung', () => {
+describe('tata letak kartu', () => {
   const size = 12.8
   const cap = 0.698
 
@@ -238,29 +330,4 @@ describe('tata letak kartu dan penghitung', () => {
     expect(M.box.x1).toBeLessThanOrEqual(375 - FACT_LABEL.margin + 1e-9)
   })
 
-  it('penghitung rata kanan di margin, sejajar tengah logo, tidak menabrak logo (1024 dan 375)', () => {
-    for (const [width, logoBox, margin, s] of [
-      [1024, { x: 50, y: 45, width: 160, height: 33.6 }, 50, 12.8],
-      [375, { x: 25, y: 25, width: 140, height: 29.4 }, 25, 12],
-    ]) {
-      const textWidth = 'FOUND 12/12'.length * 0.6 * s
-      const rowWidth = 'ALL 12 FOUND'.length * 0.6 * s
-      const L = factCounterLayout({ width, logoBox, margin, size: s, capHeight: cap, textWidth, rowWidth })
-      expect(L.textX + textWidth).toBeCloseTo(width - margin)
-      expect(L.rect.x1).toBeLessThanOrEqual(width)
-      expect(L.rect.y0).toBeGreaterThanOrEqual(0)
-      expect(L.rect.x0).toBeGreaterThan(logoBox.x + logoBox.width)
-      const mid = (L.baseline - cap * s + L.tickY) / 2
-      expect(mid).toBeCloseTo(logoBox.y + logoBox.height / 2)
-    }
-  })
-
-  it('tanda: n sama panjang, rapat ke kanan baris', () => {
-    const sp = tickSpans(12, 100, 120, 4)
-    expect(sp.length).toBe(12)
-    expect(sp[0][0]).toBe(100)
-    expect(sp[11][1]).toBeCloseTo(220)
-    const len = sp[0][1] - sp[0][0]
-    for (const [a, b] of sp) expect(b - a).toBeCloseTo(len)
-  })
 })

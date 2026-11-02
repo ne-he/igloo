@@ -7,6 +7,8 @@ Butuh dev server jalan. Alur:
   3. tiap link (semua isi src/content/links.js, berurutan lewat panah kanan): frame saat pecah (+0.15 s), +1 s,
      +3 s, lalu kotak Visit diklik. window.open dicatat (dan request ke luar localhost dicegat), url harus sama
      dengan data link
+  3b. panah kanan sekali lagi (kembali ke link 0): frame di waktu engine +0.7, +1.0, +1.4, +1.8, +2.2 s saat bentuk
+     berputar masuk (m7b_p_0_<link>_in*.png + m7b_p_0_<link>_in_strip.png), index harus 0
   4. sapuan mouse menembus bentuk: frame saat dan sesudah, FPS selama sapuan
   5. klik setengah kiri + swipe kiri (dua jalur ganti link lain), cek indeks berputar benar
   6. lembar kontak menghadap: rotasi volume dikunci, tiap link difoto di 3 sudut (0, 0.6, 1.4 rad dari muka)
@@ -246,6 +248,44 @@ def main():
         for pg in ctx.pages[1:]:
             pg.close()
 
+        # ---- link pertama berputar masuk (26 Okt 2026, monogram NWJ) ----
+        # link 0 di atas cuma difoto diam (sudah tampil sejak ruang dimuat). Panah kanan dari link terakhir kembali
+        # ke link 0: bentuk mulai menyamping ke kanan dan menghadap depan sesudah PARTICLES.frontDelay (1.4 s).
+        # Screenshot makan ratusan ms, jadi frame dipilih lewat waktu ENGINE: uRotation turun rotationSpeed per detik
+        # dari nilai reset, begitu melewati titik waktu t ticker engine dihentikan di frame itu, difoto, lalu jalan lagi
+        # (ticker yang berhenti tidak memajukan sim, jadi waktu engine sesudahnya tetap urut).
+        page.keyboard.press('ArrowRight')
+        name0 = slug(links[0]['title'])
+        rot_at = f'''(t) => import('/src/scenes/entry/Particles.js').then(({{ PARTICLES: P }}) => new Promise((res) => {{
+          const u = {ENTRY}.particles.uniforms.uRotation
+          const target = 1.5 * Math.PI + P.rotationSpeed * P.frontDelay - P.rotationSpeed * t
+          const tick = () => {{ if (u.value <= target) {{ __igloo.engine.ticker.stop(); res(u.value - 1.5 * Math.PI) }}
+            else requestAnimationFrame(tick) }}
+          requestAnimationFrame(tick) }}))'''
+        strip = []
+        for at in [0.7, 1.0, 1.4, 1.8, 2.2]:
+            ang = page.evaluate(rot_at, at)
+            path = shot(f'0_{name0}_in{int(round(at * 10)):02d}', f"{links[0]['title']} masuk +{at:.1f} s (SDF {ang:+.2f} rad)")
+            page.evaluate('__igloo.engine.ticker.start()')
+            strip.append((path, at, ang))
+        idx0 = page.evaluate(f'() => {ENTRY}.linkIndex')
+        print(f"link 0 berputar masuk: index {idx0} (harus 0), frame waktu engine "
+              + ', '.join(f'+{at:.1f} s = {ang:+.2f} rad' for _, at, ang in strip) + f"  {'OK' if idx0 == 0 else 'SALAH'}")
+        if idx0 != 0:
+            bad_visit.append(f'kembali ke link 0 lewat panah kanan: index {idx0}')
+        sw, sh = 300, 280
+        sheet_in = Image.new('RGB', (sw * len(strip), sh), (20, 20, 20))
+        for i, (path, at, ang) in enumerate(strip):
+            im = Image.open(path).convert('RGB').crop((args.width // 2 - 300, int(args.height * 0.1),
+                                                       args.width // 2 + 300, int(args.height * 0.1) + 560))
+            im = im.resize((sw, sh), Image.LANCZOS)
+            ImageDraw.Draw(im).text((6, 6), f"+{at:.1f} s  {ang:+.2f} rad", fill=(0, 0, 0))
+            sheet_in.paste(im, (i * sw, 0))
+        strip_path = os.path.join(OUT, f'm7b_p_0_{name0}_in_strip.png')
+        sheet_in.save(strip_path)
+        print('jalur masuk link 0:', os.path.relpath(strip_path, ROOT))
+        page.mouse.move(args.width * 0.9, args.height * 0.15)
+
         # ---- sapuan mouse menembus bentuk ----
         cx, cy = args.width / 2, args.height * 0.42
         page.mouse.move(cx - args.width * 0.25, cy)
@@ -312,11 +352,13 @@ def main():
                         holes, med, cells = coverage(xyz, load_distance(link['volume']), link['scale'], rot)
                         print(f"  {link['title']:9s} bolong {holes:5.1f}%  median {med:4.0f} partikel/sel  ({cells} sel)")
                     path = os.path.join(OUT, f"m7b_face_{k}_{slug(link['title'])}_{j}.png")
-                    page.screenshot(path=path, clip={'x': args.width / 2 - 250, 'y': args.height * 0.15,
-                                                     'width': 500, 'height': 480})
+                    # potongan 560 x 520 mulai 0.1 tinggi layar: monogram NWJ selebar sekitar 0.5 unit dunia (sekitar
+                    # 500 px) dan setinggi 0.38, potongan lama 500 x 480 dari 0.15 memotong tepi dan puncak huruf
+                    page.screenshot(path=path, clip={'x': args.width / 2 - 280, 'y': args.height * 0.1,
+                                                     'width': 560, 'height': 520})
                     tiles.append((path, f"{link['title']} {ang:.1f} rad"))
             page.evaluate('window.__rot = null')
-            tw, th = 300, 288
+            tw, th = 336, 312
             cols = len(SHEET_ANGLES)
             sheet = Image.new('RGB', (cols * tw, len(links) * th), (20, 20, 20))
             for i, (path, label) in enumerate(tiles):

@@ -1,25 +1,29 @@
-"""Verifikasi fakta hover bata igloo (src/scenes/igloo/BrickFacts.js + src/scenes/ui/FactLabel.js + FactCounter.js).
+"""Verifikasi fakta hover bata igloo (src/scenes/igloo/BrickFacts.js + facts.js + src/scenes/ui/FactLabel.js).
 
 Pakai:  python tools/verify/igloo_hover.py [--url http://localhost:5182/] [--gpu] [--tag hover]
         [--width 1024 --height 768] [--count 5] [--skip-touch] [--glimmer-seconds 15]
 Butuh dev server jalan (sebaiknya tanpa HMR, supaya edit agent lain tidak me-reload halaman di tengah run).
 Output: tools/verify/out/<tag>_*.png (layar penuh) dan <tag>_*_zoom.png (potongan label diperbesar 2x).
 
+Sejak 26 Okt 2026 penghitung FOUND n/12 dan event 'igloo_facts_complete' dibuang, tiap bata punya fakta (70),
+dan kilau biru jadi ajakan: bata acak (bukan yang di-hover) berkilau sampai pengunjung membuka 3 kartu berbeda.
+
 Langkah:
   1. intro: mouse di atas igloo selagi intro jalan -> tidak boleh ada label, tidak ada bata yang di-hover,
      dan tidak ada kilau biru selama intro (dicatat sampai intro selesai).
-  2. titik istirahat: hover beberapa bata depan (fakta berbeda), tunggu reveal selesai, cek kartu: kepala
-     "FACT 03/12" = nomor fakta bata itu, teks = fakta, bata terangkat (h2 naik), penghitung naik satu, screenshot.
-  3. hover ulang bata yang sudah ketemu -> penghitung tidak naik. Screenshot penghitung di tengah jalan.
-  4. mouse ke langit -> label pudar habis.
-  5. kilau: kursor di langit sekian detik, catat bata yang berkilau. Harus bata berfakta yang belum ketemu,
-     jarak antar awal kilau 3 sampai 5 s. Screenshot satu frame kilau.
-  6. di luar titik istirahat (n 1.0) dan di scene kristal (n 3.35) -> hover tidak memunculkan label, penghitung
-     sembunyi di scene kristal dan saat mode detail.
-  7. FPS sambil hover (waktu nyata, sangat dipengaruhi agent lain yang ikut merender).
-  8. semua fakta: bata berfakta sisanya dicari lewat pick() lalu di-hover satu per satu. Penghitung "ALL 12 FOUND",
-     event bus 'igloo_facts_complete' tepat sekali (juga sesudah hover ulang), kilau berhenti. Screenshot.
-  9. layar sentuh (konteks has_touch) di ukuran utama dan 375x812: tap bata -> kartu muncul di dalam layar,
+  2. penghitung sudah tidak ada: tidak ada objek UI penghitung, tidak ada live region a11y-nya. Fakta di a11y =
+     jumlah fakta, pembagian fakta: tiap bata satu fakta unik kalau fakta = bata, fakta 1 di bata yang terlihat.
+  3. kilau sebelum kartu pertama: kursor di langit sekian detik, catat bata yang berkilau. Harus bata berfakta,
+     jarak antar awal kilau 3 sampai 5 s. Screenshot satu frame kilau. Perekam kilau jalan terus sampai akhir.
+  4. titik istirahat: hover beberapa bata depan (fakta berbeda), tunggu reveal selesai, cek kartu: kepala
+     "FACT 05/70" = nomor fakta bata itu / total fakta, teks = fakta, bata terangkat, event dibuka naik satu.
+  5. mouse ke langit -> label pudar habis. Kilau berhenti: sesudah 3 kartu berbeda dibuka tidak ada kilau baru,
+     semua kilau yang tercatat mulai saat kartu dibuka masih di bawah 3 dan tidak pernah di bata yang di-hover.
+  6. hover ulang bata yang sudah dibuka -> hitungan tidak naik.
+  7. di luar titik istirahat (n 1.0) dan di scene kristal (n 3.35) -> hover tidak memunculkan label.
+  8. FPS sambil hover (waktu nyata, sangat dipengaruhi agent lain yang ikut merender).
+  9. sepanjang run event 'igloo_facts_complete' tidak pernah dipancarkan.
+ 10. layar sentuh (konteks has_touch) di ukuran utama dan 375x812: tap bata -> kartu muncul di dalam layar,
      tap langit -> pudar.
 Selalu: kumpulkan error console + pageerror.
 """
@@ -38,7 +42,7 @@ READY_JS = 'window.__igloo && document.getElementById("loader").classList.contai
 
 STATE_JS = """
 (() => {
-  const e = __igloo.engine, s = e.scenes[0], f = s.facts, l = e.ui.factLabel, b = s.igloo.bricks, c = e.ui.factCounter
+  const e = __igloo.engine, s = e.scenes[0], f = s.facts, l = e.ui.factLabel, b = s.igloo.bricks
   const cur = f.current
   return {
     current: cur,
@@ -53,8 +57,7 @@ STATE_JS = """
     box: l.layoutResult ? l.layoutResult.box : null,
     found: f.tracker.count,
     foundList: Array.from(f.tracker.found),
-    counter: c.text.text, counterCount: c.count, counterVisible: c.visible, counterShow: c.show1,
-    counterRect: c.layout ? c.layout.rect : null, counterComplete: c.complete,
+    total: f.tracker.total,
     glimmer: [b.glimmer.index, b.glimmer.amount],
     intro: !!e.intro?.running,
     progress: s.progress,
@@ -153,7 +156,8 @@ FACT_POINTS_JS = """
 })()
 """
 
-# Pendengar bus di halaman (modul /src/engine/Bus.js yang sama dengan app, server dev Vite)
+# Pendengar bus di halaman (modul /src/engine/Bus.js yang sama dengan app, server dev Vite). complete harus tetap 0:
+# event 'igloo_facts_complete' dibuang 26 Okt 2026.
 BUS_JS = """
 (async () => {
   if (window.__factEvents) return true
@@ -161,6 +165,24 @@ BUS_JS = """
   window.__factEvents = { found: [], complete: 0 }
   bus.on('igloo_fact_found', (e) => window.__factEvents.found.push([e.fact, e.count, e.total]))
   bus.on('igloo_facts_complete', () => window.__factEvents.complete++)
+  return true
+})()
+"""
+
+# Perekam kilau sepanjang run: tiap awal kilau dicatat [detik, bata, fakta bata itu, kartu dibuka saat itu, bata yang
+# di-hover saat itu]. Kilau ajakan harus berhenti setelah GLIMMER.stopAfter kartu berbeda dibuka.
+GLIMMER_REC_JS = """
+(() => {
+  if (window.__glimRec) return true
+  const s = __igloo.engine.scenes[0], g = s.igloo.bricks.glimmer, f = s.facts, rec = window.__glimRec = []
+  let prev = -1
+  const t0 = performance.now()
+  const step = () => {
+    if (g.index >= 0 && g.index !== prev) rec.push([(performance.now() - t0) / 1000, g.index, f.assignment[g.index], f.tracker.count, f.current])
+    prev = g.index
+    requestAnimationFrame(step)
+  }
+  requestAnimationFrame(step)
   return true
 })()
 """
@@ -218,8 +240,8 @@ def hover_rest(page, args, report):
     print(f'bata depan yang bisa di-hover: {n_front}, dipilih {len(targets)}')
     total = page.evaluate('__igloo.engine.scenes[0].facts.tracker.total')
     st0 = state(page)
-    good0 = st0['found'] == 0 and not st0['counterVisible']
-    print(f'sebelum fakta pertama: ditemukan {st0["found"]}, penghitung tampil {st0["counterVisible"]} {"OK" if good0 else "GAGAL"}')
+    good0 = st0['found'] == 0
+    print(f'sebelum kartu pertama: dibuka {st0["found"]}, total di kepala kartu {total} {"OK" if good0 else "GAGAL"}')
     report['ok'] &= good0
     for t in targets:
         # mulai dari langit tiap kali: label sebelumnya harus pudar dulu, jadi yang ditunggu pasti label baru
@@ -228,7 +250,7 @@ def hover_rest(page, args, report):
         st_prev = state(page)
         prev = st_prev['found']
         retried = False
-        for attempt in range(2):
+        for attempt in range(3):
             if attempt:
                 # bata bergeser sejak target dipilih (napas, dorongan mouse, kilau): titik baru lalu hover ulang
                 fresh = next((x for x in page.evaluate(FACT_POINTS_JS) if x['i'] == t['i']), None)
@@ -254,26 +276,26 @@ def hover_rest(page, args, report):
         switches = sum(1 for a, b in zip(seq, seq[1:]) if a != b)
         same = st['current'] == t['i']
         want_header = f'FACT {st["number"]:02d}/{total:02d}'
-        # kartu: kepala nomor fakta, teks fakta. Penghitung: fakta bata ini terhitung, naik tepat satu per fakta baru
-        # (event bus berurutan 1, 2, 3, ... tanpa fakta dobel), teks penghitung sama dengan jumlahnya.
-        card_ok = st['header'] == want_header and st['factShow2'] >= 1
+        # kartu: kepala nomor fakta / total fakta asli, teks fakta. Hitungan dibuka: fakta bata ini terhitung, event
+        # bus berurutan 1, 2, 3, ... tanpa fakta dobel. Sejak tiap bata punya fakta, kursor yang sempat kena bata
+        # tetangga (hover ulang) ikut membuka kartu tetangga itu, jadi hitungan boleh naik lebih dari satu.
+        card_ok = st['header'] == want_header and st['factShow2'] >= 1 and st['header'].endswith(f'/{total}')
         ev = page.evaluate('window.__factEvents')
         counts = [c for _, c, _ in ev['found']]
         fact_idx = st['number'] - 1
-        # fakta ini bisa sudah terhitung lebih dulu kalau hover sebelumnya sempat kena bata ini: tidak boleh naik lagi
         if fact_idx in st_prev['foundList']:
-            grew = st['found'] == prev
+            grew = st['found'] >= prev
         else:
-            grew = st['found'] == prev + 1 or (retried and st['found'] > prev)
-        count_ok = (grew and fact_idx in st['foundList'] and counts == list(range(1, st['found'] + 1))
-                    and len({f for f, _, _ in ev['found']}) == len(counts) and st['counter'] == f'FOUND {st["found"]}/{total}')
+            grew = st['found'] >= prev + 1
+        count_ok = (grew and fact_idx in st['foundList'] and counts == list(range(1, len(counts) + 1))
+                    and len(counts) >= st['found'] and len({f for f, _, _ in ev['found']}) == len(counts))
         good = (st['current'] >= 0 and st['text'] == st['fact'] and st['show1'] >= 1 and st['hovered'] == st['current']
                 and switches <= 1 and card_ok and count_ok)
         report['hover'].append({'target': t['i'], 'want': t['fact'], **{k: st[k] for k in ('current', 'fact', 'text', 'lift', 'show1')},
                                 'switches': switches, 'ok': good})
         print(f'hover bata {t["i"]:2d} ({t["fact"]}) -> current {st["current"]:2d} kartu "{st["header"]}" / "{st["text"]}" '
               f'(mau "{want_header}") lift {st["lift"]:.2f} show1 {st["show1"]:.2f} ganti selama diam {switches}x '
-              f'penghitung "{st["counter"]}" {"OK" if good else "GAGAL"}{"" if same else " (kena bata tetangga)"}'
+              f'dibuka {st["found"]} {"OK" if good else "GAGAL"}{"" if same else " (kena bata tetangga)"}'
               f'{" (hover ulang, bata sempat bergeser)" if retried else ""}  {path}')
         report['ok'] &= good
 
@@ -289,50 +311,97 @@ def hover_rest(page, args, report):
     return targets
 
 
-def repeat_and_mid(page, args, targets, report):
-    """Hover ulang bata yang sudah ketemu: penghitung tidak naik. Screenshot penghitung di tengah jalan."""
-    before = state(page)
-    page.mouse.move(args.width * 0.9, args.height * 0.1, steps=3)
-    page.wait_for_function('__igloo.engine.scenes[0].facts.current === -1', timeout=15000)
-    # bata yang faktanya sudah ketemu, titik dihitung tepat sebelum hover
-    done = [x for x in page.evaluate(FACT_POINTS_JS) if x['found'] and x['pt']]
-    if not done:
-        print('hover ulang: tidak ada bata berfakta yang sudah ketemu dan terlihat, GAGAL')
+def repeat_check(page, args, report):
+    """Hover ulang bata yang kartunya sudah dibuka: fakta itu tidak dihitung lagi (event-nya tetap tepat sekali).
+    Kursor bisa kena bata tetangga dulu (tiap bata punya fakta, tetangga ikut terbuka), jadi yang dinilai event per
+    fakta, bukan selisih hitungan total. Sampai 3 percobaan sampai kursor benar di bata itu."""
+    st = None
+    t = None
+    for attempt in range(3):
+        page.mouse.move(args.width * 0.9, args.height * 0.1, steps=3)
+        page.wait_for_function('__igloo.engine.scenes[0].facts.current === -1 && __igloo.engine.ui.factLabel.show1 === 0', timeout=15000)
+        # bata yang kartunya sudah dibuka, titik dihitung tepat sebelum hover
+        done = [x for x in page.evaluate(FACT_POINTS_JS) if x['found'] and x['pt']]
+        if not done:
+            break
+        t = done[attempt % len(done)]
+        page.mouse.move(t['pt']['x'], t['pt']['y'], steps=6)
+        try:
+            page.wait_for_function(f'__igloo.engine.scenes[0].facts.current === {t["i"]} && __igloo.engine.ui.factLabel.factShow2 >= 1',
+                                   timeout=6000)
+        except Exception:
+            pass
+        page.wait_for_timeout(600)
+        st = state(page)
+        if st['current'] == t['i']:
+            break
+    if not t or not st:
+        print('hover ulang: tidak ada bata yang kartunya sudah dibuka dan terlihat, GAGAL')
         report['repeat'] = False
         report['ok'] = False
         return
-    t = done[0]
-    page.mouse.move(t['pt']['x'], t['pt']['y'], steps=6)
-    try:
-        page.wait_for_function(f'__igloo.engine.scenes[0].facts.current === {t["i"]} && __igloo.engine.ui.factLabel.factShow2 >= 1',
-                               timeout=6000)
-    except Exception:
-        pass
-    page.wait_for_timeout(600)
-    st = state(page)
     ev = page.evaluate('window.__factEvents')
-    good = st['found'] == before['found'] and st['counter'] == before['counter'] and st['current'] == t['i'] \
-        and len(ev['found']) == before['found']
-    print(f'hover ulang bata {t["i"]} ({t["text"]}) -> current {st["current"]}, ditemukan {before["found"]} -> {st["found"]}, '
-          f'penghitung "{st["counter"]}", event igloo_fact_found {len(ev["found"])}x {"OK" if good else "GAGAL"}')
+    times = sum(1 for f, _, _ in ev['found'] if f == t['fact'])
+    good = st['current'] == t['i'] and times == 1 and t['fact'] in st['foundList']
+    print(f'hover ulang bata {t["i"]} ({t["text"]}, fakta {t["fact"] + 1}) -> current {st["current"]}, event fakta itu {times}x '
+          f'(harus 1), dibuka total {st["found"]} {"OK" if good else "GAGAL"}')
     report['repeat'] = good
     report['ok'] &= good
-    # penghitung di tengah jalan, kartu dilepas dulu supaya pojok kanan atas bersih
     page.mouse.move(args.width * 0.9, args.height * 0.1, steps=3)
     page.wait_for_function('__igloo.engine.ui.factLabel.show1 === 0', timeout=15000)
-    page.wait_for_timeout(300)
-    st = state(page)
-    path = shot(page, 'counter_mid', None, args.tag)
-    z = zoom_rect(os.path.join(OUT, f'{args.tag}_counter_mid.png'), st['counterRect'], 'counter_mid', args.tag, scale=3)
-    print(f'penghitung tengah jalan: "{st["counter"]}" tampil {st["counterVisible"]}  {path}  {z}')
+
+
+def no_counter(page, report):
+    """Penghitung FOUND sudah dibuang: tidak ada objek UI, tidak ada mesh, tidak ada live region a11y."""
+    r = page.evaluate("""(() => {
+      const ui = __igloo.engine.ui
+      const names = []
+      ui.traverse((o) => { if (/factCounter|factTicks/i.test(o.name)) names.push(o.name) })
+      return { prop: ui.factCounter === undefined ? null : String(ui.factCounter), names,
+               a11y: !!document.querySelector('#a11y section[data-fact-counter]'),
+               avoidExtra: 'avoidExtra' in ui.factLabel }
+    })()""")
+    good = r['prop'] is None and not r['names'] and not r['a11y'] and not r['avoidExtra']
+    print(f'penghitung dibuang: ui.factCounter {r["prop"]}, mesh {r["names"]}, a11y live region {r["a11y"]}, '
+          f'factLabel.avoidExtra {r["avoidExtra"]} {"OK" if good else "GAGAL"}')
+    report['no_counter'] = good
+    report['ok'] &= good
+
+
+def assignment_check(page, report):
+    """Pembagian fakta di igloo sungguhan: fakta = bata -> tiap bata satu fakta unik, fakta awal di bata terlihat."""
+    r = page.evaluate("""(() => {
+      const f = __igloo.engine.scenes[0].facts
+      return { a: f.assignment, facts: f.facts.length, bricks: f.bricks.bricks.length, total: f.tracker.total }
+    })()""")
+    a = r['a']
+    pts = page.evaluate(FACT_POINTS_JS)
+    visible = {p['i'] for p in pts if p['pt']}
+    used = sorted(x for x in a if x >= 0)
+    want = min(r['facts'], r['bricks'])
+    unique = used == list(range(want))
+    # fakta 1 dan sebagian besar fakta awal ada di bata yang bisa dikenai sinar dari kamera titik istirahat
+    first = [a.index(k) for k in range(min(12, want))]
+    first_vis = sum(1 for i in first if i in visible)
+    vis_facts = sorted(a[i] for i in visible if a[i] >= 0)
+    hid_facts = sorted(a[i] for i in range(len(a)) if i not in visible and a[i] >= 0)
+    med = lambda xs: xs[len(xs) // 2] if xs else -1  # noqa: E731
+    good = unique and r['total'] == want and first[0] in visible and first_vis >= 10 and \
+        (not hid_facts or med(vis_facts) < med(hid_facts))
+    print(f'pembagian fakta: {r["facts"]} fakta, {r["bricks"]} bata, total kepala kartu {r["total"]}, '
+          f'tiap fakta tepat satu bata {unique}, bata terlihat {len(visible)}, 12 fakta pertama terlihat {first_vis}/12, '
+          f'median nomor fakta terlihat {med(vis_facts) + 1} vs tersembunyi {med(hid_facts) + 1} {"OK" if good else "GAGAL"}')
+    report['assignment'] = good
+    report['ok'] &= good
 
 
 def glimmer_check(page, args, report):
-    """Kursor di langit: catat kilau tiap frame. Harus bata berfakta yang belum ketemu, jarak awal kilau 3 sampai 5 s."""
+    """Sebelum kartu pertama, kursor di langit: catat kilau tiap frame. Bata berfakta, jarak awal kilau 3 sampai 5 s."""
+    page.evaluate('__igloo.setScroll(0.658)')
     page.mouse.move(args.width * 0.9, args.height * 0.1, steps=3)
     page.wait_for_timeout(300)
     facts = page.evaluate(FACT_POINTS_JS)
-    unfound = {f['i'] for f in facts if not f['found']}
+    with_fact = {f['i'] for f in facts}
     log = page.evaluate(GLIMMER_LOG_JS, args.glimmer_seconds * 1000)
     starts = []
     prev = -1
@@ -344,15 +413,19 @@ def glimmer_check(page, args, report):
             peaks[len(starts) - 1] = max(peaks.get(len(starts) - 1, 0), amt)
         prev = idx
     bricks = [i for _, i in starts]
-    gaps = [round(b[0] - a[0], 2) for a, b in zip(starts, starts[1:])]
-    only_unfound = all(i in unfound for i in bricks)
-    gaps_ok = all(2.9 <= g <= 5.2 for g in gaps)
-    # kilau pertama bisa sudah jalan saat rekaman mulai, yang terakhir bisa terpotong: puncaknya tidak dinilai
+    # kilau pertama bisa sudah jalan saat rekaman mulai (awal aslinya lebih dulu), yang terakhir bisa terpotong:
+    # awal kilau yang terpotong tidak dipakai untuk jarak, puncaknya tidak dinilai
     partial_first = bool(log) and log[0][1] >= 0
+    full = starts[1:] if partial_first else starts
+    gaps = [round(b[0] - a[0], 2) for a, b in zip(full, full[1:])]
+    only_fact = all(i in with_fact for i in bricks)
+    gaps_ok = all(2.9 <= g <= 5.2 for g in gaps)
     peak_ok = all(v > 0.8 for k, v in peaks.items() if k < len(starts) - 1 and not (k == 0 and partial_first))
-    good = len(starts) >= 2 and only_unfound and gaps_ok and peak_ok
-    print(f'kilau {args.glimmer_seconds} s: {len(starts)} kilau di bata {bricks} (belum ketemu: {sorted(unfound)}), '
-          f'jarak antar awal {gaps} s, puncak {[round(v, 2) for v in peaks.values()]} {"OK" if good else "GAGAL"}')
+    found0 = log[-1][3] if log else -1
+    good = len(starts) >= 2 and only_fact and gaps_ok and peak_ok and found0 == 0
+    print(f'kilau ajakan {args.glimmer_seconds} s sebelum kartu pertama: {len(starts)} kilau di bata {bricks} '
+          f'(bata berfakta {len(with_fact)}), jarak antar awal {gaps} s, puncak {[round(v, 2) for v in peaks.values()]}, '
+          f'kartu dibuka {found0} {"OK" if good else "GAGAL"}')
     report['glimmer'] = {'starts': [[round(t, 2), i] for t, i in starts], 'ok': good}
     report['ok'] &= good
     # satu frame kilau di puncak. Screenshot Playwright bisa makan 0.5 s (lebih lama dari puncak kilau), jadi jadwal
@@ -375,64 +448,25 @@ def glimmer_check(page, args, report):
         report['ok'] = False
 
 
-def all_found(page, args, report):
-    """Cari semua bata berfakta lewat pick(), hover yang belum ketemu satu per satu, cek keadaan selesai."""
-    page.evaluate('__igloo.setScroll(0.658)')
-    page.mouse.move(args.width * 0.9, args.height * 0.1)
-    page.wait_for_timeout(600)
-    total = page.evaluate('__igloo.engine.scenes[0].facts.tracker.total')
-    seq = []
-    for attempt in range(3):
-        facts = page.evaluate(FACT_POINTS_JS)
-        todo = [f for f in facts if not f['found']]
-        if not todo:
-            break
-        for f in todo:
-            # posisi diambil ulang tepat sebelum hover (bata bernapas, kamera parallax)
-            fresh = next(x for x in page.evaluate(FACT_POINTS_JS) if x['i'] == f['i'])
-            if not fresh['pt']:
-                print(f'  bata {f["i"]} ({f["text"]}) tidak bisa dikenai sinar dari kamera, dicoba lagi nanti')
-                continue
-            ok = hover_fact(page, args, fresh['pt'], f['fact'])
-            st = state(page)
-            seq.append(st['found'])
-            print(f'  hover bata {f["i"]:2d} fakta {f["fact"] + 1:2d} ({f["text"]}) -> {"ketemu" if ok else "BELUM"}, '
-                  f'penghitung "{st["counter"]}"')
-            if st['found'] == total:
-                # sorot selesai masih jalan (2.4 s): foto sesudah scramble mendarat, teks masih biru es
-                page.wait_for_function('__igloo.engine.ui.factCounter.show2 >= 1', timeout=5000)
-                st = state(page)
-                path = shot(page, 'complete', None, args.tag)
-                z = zoom_rect(os.path.join(OUT, f'{args.tag}_complete.png'), st['counterRect'], 'complete', args.tag, scale=3)
-                print(f'  semua ketemu, sorot: "{st["counter"]}"  {path}  {z}')
+def glimmer_stopped(page, args, report):
+    """Sesudah 3 kartu berbeda dibuka: tidak ada kilau baru. Rekaman sepanjang run: kilau hanya mulai saat kartu
+    dibuka masih di bawah 3, dan tidak pernah di bata yang sedang di-hover."""
     page.mouse.move(args.width * 0.9, args.height * 0.1, steps=3)
-    page.wait_for_timeout(2500)
-    st = state(page)
-    ev = page.evaluate('window.__factEvents')
-    counts = [c for _, c, _ in ev['found']]
-    once = counts == list(range(1, total + 1)) and len({f for f, _, _ in ev['found']}) == total
-    complete_text = page.evaluate(f"__igloo.engine.ui.factCounter.strings.complete.replace('{{total}}', '{total}')")
-    good = st['found'] == total and st['counterComplete'] and st['counter'] == complete_text and ev['complete'] == 1 and once
-    print(f'semua fakta: ditemukan {st["found"]}/{total}, penghitung "{st["counter"]}" tampil {st["counterVisible"]}, '
-          f'urutan hitung event {counts}, igloo_facts_complete {ev["complete"]}x {"OK" if good else "GAGAL"}')
-    # hover ulang satu bata: event selesai tetap sekali
-    facts = page.evaluate(FACT_POINTS_JS)
-    again = next((f for f in facts if f['pt']), None)
-    if again:
-        page.mouse.move(again['pt']['x'], again['pt']['y'], steps=5)
-        page.wait_for_timeout(1500)
-    ev2 = page.evaluate('window.__factEvents')
-    good2 = ev2['complete'] == 1 and len(ev2['found']) == total
-    print(f'hover ulang sesudah selesai -> igloo_facts_complete {ev2["complete"]}x, igloo_fact_found {len(ev2["found"])}x '
-          f'{"OK" if good2 else "GAGAL"}')
-    # kilau berhenti
-    page.mouse.move(args.width * 0.9, args.height * 0.1, steps=3)
-    log = page.evaluate(GLIMMER_LOG_JS, 6000)
+    opened = state(page)['found']
+    page.wait_for_timeout(1500)  # kilau yang sedang jalan saat kartu ke-3 dibuka dibiarkan selesai (1.3 s)
+    log = page.evaluate(GLIMMER_LOG_JS, 8000)
     glims = sorted({i for _, i, _, _ in log if i >= 0})
-    good3 = not glims
-    print(f'kilau 6 s sesudah semua ketemu: bata {glims} {"OK" if good3 else "GAGAL"}')
-    report['all_found'] = good and good2 and good3
-    report['ok'] &= good and good2 and good3
+    rec = page.evaluate('window.__glimRec')
+    late = [r for r in rec if r[3] >= 3]
+    on_hovered = [r for r in rec if r[1] == r[4]]
+    no_fact = [r for r in rec if r[2] is None or r[2] < 0]
+    during = [r for r in rec if 0 < r[3] < 3]
+    good = opened >= 3 and not glims and not late and not on_hovered and not no_fact
+    print(f'kilau sesudah {opened} kartu dibuka: 8 s berikutnya bata {glims}; sepanjang run {len(rec)} kilau, '
+          f'{len(during)} mulai di antara kartu ke-1 dan ke-3, mulai sesudah kartu ke-3 {len(late)}, '
+          f'di bata yang di-hover {len(on_hovered)}, di bata tanpa fakta {len(no_fact)} {"OK" if good else "GAGAL"}')
+    report['glimmer_stop'] = good
+    report['ok'] &= good
 
 
 def no_label_elsewhere(page, args, targets, report):
@@ -444,30 +478,14 @@ def no_label_elsewhere(page, args, targets, report):
         page.mouse.move(t['x'], t['y'], steps=6)
         page.wait_for_timeout(1200)
         st = state(page)
-        # penghitung: tetap tampil di scene igloo (n 1.0), sembunyi di scene kristal
-        counter_ok = st['counterVisible'] == (n < 2)
-        good = st['current'] == -1 and not st['visible'] and counter_ok
+        good = st['current'] == -1 and not st['visible']
         print(f'n={n} ({label}) progress igloo {st["progress"]:.3f} aktif {st["active"]} -> current {st["current"]} '
-              f'visible {st["visible"]} penghitung tampil {st["counterVisible"]} {"OK" if good else "GAGAL"}  '
-              f'{shot(page, f"n{n:.2f}", st, args.tag)}')
+              f'visible {st["visible"]} {"OK" if good else "GAGAL"}  {shot(page, f"n{n:.2f}", st, args.tag)}')
         report['elsewhere'].append(good)
         report['ok'] &= good
     page.evaluate('__igloo.setScroll(0.658)')
     page.mouse.move(args.width * 0.9, args.height * 0.1)
     page.wait_for_timeout(800)
-    back = state(page)['counterVisible']
-    # mode detail (sintetis: detail sungguhan hanya bisa dibuka dari scene kristal, di sana penghitung sudah sembunyi)
-    page.evaluate('__igloo.engine.ui.setDetailMode(true)')
-    page.wait_for_timeout(700)
-    in_detail = state(page)['counterVisible']
-    page.evaluate('__igloo.engine.ui.setDetailMode(false)')
-    page.wait_for_timeout(800)
-    after = state(page)['counterVisible']
-    good = back and not in_detail and after
-    print(f'penghitung: kembali ke igloo tampil {back}, mode detail tampil {in_detail}, sesudah detail tampil {after} '
-          f'{"OK" if good else "GAGAL"}')
-    report['elsewhere'].append(good)
-    report['ok'] &= good
 
 
 def fps_hover(page, args, targets, report):
@@ -504,6 +522,9 @@ def intro_check(page, args, report):
     good = st['current'] == -1 and not st['visible'] and st['hovered'] == -1
     print(f'intro jalan ({st["intro"]}) -> current {st["current"]} visible {st["visible"]} {"OK" if good else "GAGAL"}  '
           f'{shot(page, "intro", st, args.tag)}')
+    # kursor ke langit sebelum intro selesai: tiap bata punya fakta, jadi bata di bawah kursor akan langsung membuka
+    # kartu begitu hover aktif, dan langkah kilau berikutnya butuh nol kartu dibuka
+    page.mouse.move(args.width * 0.9, args.height * 0.1, steps=3)
     page.wait_for_function('!__igloo.intro.running', timeout=60000)
     ig = page.evaluate('window.__introGlimmer')
     good_g = ig['max'] == 0 and not ig['idx']
@@ -543,14 +564,13 @@ def touch_check(browser, args, url, errors, report, width=None, height=None, nam
     st = state(page)
     b = st['box'] or {'x0': -1, 'y0': -1, 'x1': 1e9, 'y1': 1e9}
     inside = b['x0'] >= 0 and b['y0'] >= 0 and b['x1'] <= width and b['y1'] <= height
-    avoid = page.evaluate('__igloo.engine.ui.factLabel.avoid.concat(__igloo.engine.ui.factLabel.avoidExtra)')
+    avoid = page.evaluate('__igloo.engine.ui.factLabel.avoid')
     hits = [r for r in avoid if b['x0'] < r['x1'] and b['x1'] > r['x0'] and b['y0'] < r['y1'] and b['y1'] > r['y0']]
-    good = st['current'] >= 0 and st['text'] == st['fact'] and st['visible'] and inside
+    good = st['current'] >= 0 and st['text'] == st['fact'] and st['visible'] and inside and st['header'].endswith(f'/{st["total"]}')
     path = shot(page, name, st, args.tag)
-    cz = zoom_rect(os.path.join(OUT, f'{args.tag}_{name}.png'), st['counterRect'], f'{name}_counter', args.tag) if st['counterRect'] else '-'
     print(f'{width}x{height} tap bata {t["i"]} ({t["fact"]}) -> kartu "{st["header"]}" / "{st["text"]}" kotak '
-          f'({b["x0"]:.0f},{b["y0"]:.0f})-({b["x1"]:.0f},{b["y1"]:.0f}) di dalam layar {inside}, menabrak blok UI {len(hits)}, '
-          f'penghitung "{st["counter"]}" tampil {st["counterVisible"]} {"OK" if good else "GAGAL"}  {path}  {cz}')
+          f'({b["x0"]:.0f},{b["y0"]:.0f})-({b["x1"]:.0f},{b["y1"]:.0f}) di dalam layar {inside}, menabrak blok UI {len(hits)} '
+          f'{"OK" if good else "GAGAL"}  {path}')
     page.touchscreen.tap(width * 0.9, height * 0.1)
     page.wait_for_timeout(1000)
     st2 = state(page)
@@ -591,17 +611,34 @@ def main():
         intro_check(page, args, report)
         # tunggu intro selesai sendiri (bukan dipaksa), lalu UI muncul
         page.wait_for_function('!__igloo.intro.running && __igloo.engine.ui.introStarted', timeout=60000)
+        # kursor dari langkah intro masih di atas igloo: pindah ke langit dulu, sekarang tiap bata punya fakta jadi
+        # bata di bawah kursor langsung membuka kartu begitu titik istirahat aktif
+        page.mouse.move(args.width * 0.9, args.height * 0.1, steps=3)
         page.evaluate('__igloo.enableScroll(false); __igloo.adaptive(false)')
         facts = page.evaluate(A11Y_JS)
+        n_facts = page.evaluate('__igloo.engine.scenes[0].facts.facts.length')
         report['a11y'] = len(facts)
-        print(f'a11y: {len(facts)} fakta di #a11y section[data-igloo-facts]')
+        good_a11y = len(facts) == n_facts
+        print(f'a11y: {len(facts)} fakta di #a11y section[data-igloo-facts] (daftar {n_facts}) {"OK" if good_a11y else "GAGAL"}')
+        report['ok'] &= good_a11y
         page.evaluate(BUS_JS)
-        targets = hover_rest(page, args, report)
-        repeat_and_mid(page, args, targets, report)
+        no_counter(page, report)
+        page.evaluate('__igloo.setScroll(0.658)')
+        page.wait_for_timeout(800)
+        assignment_check(page, report)
+        page.evaluate(GLIMMER_REC_JS)
         glimmer_check(page, args, report)
+        targets = hover_rest(page, args, report)
+        glimmer_stopped(page, args, report)
+        repeat_check(page, args, report)
         no_label_elsewhere(page, args, targets, report)
         fps_hover(page, args, targets, report)
-        all_found(page, args, report)
+        ev = page.evaluate('window.__factEvents')
+        good_ev = ev['complete'] == 0
+        print(f"event igloo_facts_complete sepanjang run: {ev['complete']}x (harus 0), igloo_fact_found {len(ev['found'])}x "
+              f"{'OK' if good_ev else 'GAGAL'}")
+        report['no_complete_event'] = good_ev
+        report['ok'] &= good_ev
         if not args.skip_touch:
             touch_check(browser, args, args.url, errors, report)
             touch_check(browser, args, args.url, errors, report, 375, 812, 'mobile_touch')

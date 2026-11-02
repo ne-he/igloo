@@ -7,6 +7,9 @@ import { counterText } from '../igloo/facts.js'
 import { createPlate, placePlate } from './FactLabel.js'
 import content from '../../content/content.js'
 
+// TIDAK DIPASANG LAGI sejak 26 Okt 2026 (permintaan Nehemiah: penghitung FOUND dibuang, nanti tiap bata punya fakta).
+// UIScene tidak mengimpor file ini, FactLabel tidak lagi membaca avoidExtra. File disimpan kalau suatu saat dipakai lagi.
+//
 // Penghitung fakta bata igloo di pojok kanan atas, sejajar tengah kotak logo: "FOUND 3/12" (mono) dan baris
 // tanda kecil di bawahnya, satu tanda per fakta (yang sudah ketemu putih, sisanya redup).
 // Muncul setelah fakta pertama ditemukan (bus 'igloo_fact_found' dari BrickFacts.js), tiap fakta baru = teks diganti
