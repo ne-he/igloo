@@ -20,7 +20,13 @@ export default {
     scrollCueDone: 'ALL FOUND. NOW SCROLL',
     scrollCueDoneTouch: 'ALL FOUND. NOW SWIPE UP',
     // indeks section kanan bawah (SectionIndex.js), urutan sama dengan SECTIONS di sections.js
-    sections: ['IGLOO', 'WORK', 'LINKS'],
+    // (10 Nov 2026: WORK -> ABOUT ME, LINKS -> CONTACT, supaya orang non-IT langsung paham isinya)
+    sections: ['IGLOO', 'ABOUT ME', 'CONTACT'],
+    // tombol cepat kanan atas (TopLinks.js): CV di tab baru, profil ringkas tanpa 3D (quick.html)
+    topLinks: [
+      { label: '[ CV ]', title: 'Download CV (PDF)', url: 'https://ice-nemi.vercel.app/Nehemiah-Wilhelmus-Junaidi-CV.pdf', newTab: true },
+      { label: '[ QUICK VIEW ]', title: 'Quick profile, no 3D', url: '/quick.html' },
+    ],
     sectionsLabel: 'Sections', // aria-label navigasi a11y
     sound: { label: 'Sound:', on: 'On', off: 'Off' },
     close: 'Close', // tombol tutup detail proyek (M6)

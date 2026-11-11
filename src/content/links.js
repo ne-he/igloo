@@ -7,7 +7,7 @@
 // (icev2/src/content.js, CONTACT.whatsapp). Link pertama = dirinya sendiri. Visit-nya membuka situs ini
 // lagi dari awal (24 Okt 2026), url relatif '/' supaya ikut domain apa pun tempat situs ini di-deploy.
 // Bentuknya monogram NWJ (Nehemiah Wilhelmus Junaidi) sejak 26 Okt 2026, menggantikan avatar dada generik
-// (nehemiah_64.vol, file lama tetap di disk tapi tidak dimuat lagi).
+// (nehemiah_64.vol, file lama dipindah ke tools/volumes/unused supaya tidak ikut di-deploy).
 const links = [
   {
     title: 'Nehemiah',

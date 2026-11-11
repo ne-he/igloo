@@ -5,8 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Nemi's Igloo</title>
     <meta name="description" content="Nemi's Igloo: the 3D portfolio of Nehemiah Wilhelmus Junaidi, Data Science at BINUS. Inspired by igloo.inc by abeto x Bureaux." />
-    <meta property="og:title" content="Nemi's Igloo" />
-    <meta property="og:description" content="The 3D portfolio of Nehemiah Wilhelmus Junaidi, Data Science at BINUS." />
+    <meta name="theme-color" content="#a0a5b1" />
+    <link rel="canonical" href="https://igloo-nemi.vercel.app/" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Nemi's Igloo" />
+    <meta property="og:url" content="https://igloo-nemi.vercel.app/" />
+    <meta property="og:title" content="Nemi's Igloo: 3D portfolio of Nehemiah Wilhelmus Junaidi" />
+    <meta property="og:description" content="Data Science student at BINUS University, Jakarta. Explore my projects, journey and contact inside a 3D igloo, or open the quick profile." />
+    <meta property="og:image" content="https://igloo-nemi.vercel.app/og.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="A snowy igloo made of floating ice bricks, with the name Nehemiah Wilhelmus Junaidi." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script type="application/ld+json">
+      {"@context":"https://schema.org","@type":"Person","name":"Nehemiah Wilhelmus Junaidi","alternateName":"Nemi","url":"https://igloo-nemi.vercel.app/","jobTitle":"Data Science student","alumniOf":{"@type":"CollegeOrUniversity","name":"BINUS University"},"address":{"@type":"PostalAddress","addressLocality":"Jakarta","addressCountry":"ID"},"email":"mailto:nehewj@gmail.com","sameAs":["https://github.com/ne-he","https://www.linkedin.com/in/nehemiahwj","https://ice-nemi.vercel.app"]}
+    </script>
     <style>
       html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #a0a5b1; touch-action: none; }
       #app { position: fixed; inset: 0; }
@@ -31,6 +45,16 @@
       #loader-name .lc { position: absolute; left: 0; right: 0; bottom: 0; white-space: pre; font-style: normal; opacity: 0;
         pointer-events: none; -webkit-mask-image: linear-gradient(transparent, #000 85%); mask-image: linear-gradient(transparent, #000 85%); }
       #loader-pct { font-size: 11px; letter-spacing: 0.35em; padding-left: 0.35em; opacity: 0.7; }
+      /* jalan pintas ke profil ringkas tanpa 3D (quick.html): muncul setelah 3 s supaya muatan cepat tidak berkedip */
+      #loader-quick { position: fixed; z-index: 3; left: 0; right: 0; bottom: max(26px, env(safe-area-inset-bottom)); text-align: center; font: 500 12px/1 'IglooPlexMono', 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
+        letter-spacing: 0.08em; color: #fff; text-decoration: none; opacity: 0; animation: loader-quick 0.6s 3s forwards; }
+      #loader-quick span { padding: 9px 12px; background: rgba(30, 30, 44, 0.34); border-radius: 3px; }
+      #loader-quick:hover span, #loader-quick:focus-visible span { background: rgba(30, 30, 44, 0.6); }
+      #loader.hidden ~ #loader-quick { visibility: hidden; }
+      @keyframes loader-quick { to { opacity: 0.95; } }
+      /* pesan kalau 3D gagal jalan (main.js) */
+      #loader-fail { max-width: 30em; padding: 0 22px; text-align: center; line-height: 1.6; font-size: 15px; text-shadow: none; }
+      #loader-fail a { display: inline-block; margin-top: 16px; padding: 11px 14px; color: #1e1e2c; background: #fff; text-decoration: none; letter-spacing: 0.06em; font-size: 13px; }
       @keyframes loader-lock { from { transform: translateY(-0.14em) scale(1.2); } to { transform: none; } }
       @media (prefers-reduced-motion: reduce) {
         #loader-name .lg { transition: opacity 0.5s; }
@@ -48,6 +72,16 @@
         <div id="loader-pct">000</div>
       </div>
     </div>
+    <a id="loader-quick" href="/quick.html"><span>IN A HURRY? OPEN THE QUICK PROFILE</span></a>
+    <noscript>
+      <div style="position:fixed;inset:0;z-index:5;display:grid;place-items:center;background:#1e1e2c;color:#fff;font:16px/1.6 ui-monospace,Menlo,Consolas,monospace;text-align:center;padding:24px">
+        <div>
+          <h1 style="font-size:26px;margin:0 0 8px">Nehemiah Wilhelmus Junaidi</h1>
+          <p style="margin:0 0 16px">Data Science student at BINUS University, Jakarta. This 3D portfolio needs JavaScript.</p>
+          <p style="margin:0"><a style="color:#fff" href="https://ice-nemi.vercel.app/Nehemiah-Wilhelmus-Junaidi-CV.pdf">CV</a> &nbsp; <a style="color:#fff" href="https://www.linkedin.com/in/nehemiahwj">LinkedIn</a> &nbsp; <a style="color:#fff" href="https://github.com/ne-he">GitHub</a> &nbsp; <a style="color:#fff" href="mailto:nehewj@gmail.com">Email</a></p>
+        </div>
+      </div>
+    </noscript>
     <main class="sr-only" id="a11y"></main>
     <script type="module" src="/src/main.js"></script>
   </body>

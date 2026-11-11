@@ -571,7 +571,7 @@ def touch_check(browser, args, url, errors, report, width=None, height=None, nam
     print(f'{width}x{height} tap bata {t["i"]} ({t["fact"]}) -> kartu "{st["header"]}" / "{st["text"]}" kotak '
           f'({b["x0"]:.0f},{b["y0"]:.0f})-({b["x1"]:.0f},{b["y1"]:.0f}) di dalam layar {inside}, menabrak blok UI {len(hits)} '
           f'{"OK" if good else "GAGAL"}  {path}')
-    page.touchscreen.tap(width * 0.9, height * 0.1)
+    page.touchscreen.tap(width * 0.88, height * 0.3)
     page.wait_for_timeout(1000)
     st2 = state(page)
     good2 = st2['current'] == -1 and not st2['visible']

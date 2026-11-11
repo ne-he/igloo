@@ -5,7 +5,7 @@ import { InkText, InkLines, SoftPlate } from './uiParts.js'
 import { layoutSectionIndex } from './layout.js'
 import { sectionLabel } from './sectionNav.js'
 
-// Indeks section kanan bawah, cermin blok Sound: "01 IGLOO / 02 WORK / 03 LINKS" (ponsel: nomor saja, bertumpuk).
+// Indeks section kanan bawah, cermin blok Sound: "01 IGLOO / 02 ABOUT ME / 03 CONTACT" (ponsel: nomor saja, bertumpuk).
 // Item aktif putih penuh dengan garis penanda pendek di kirinya, item lain redup. Hover = scramble ulang + bunyi
 // "ui-long" seperti tombol Sound. Klik ditangani UIScene, lompatnya diurus ScrollGuide.
 

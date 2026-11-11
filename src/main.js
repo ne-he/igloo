@@ -13,8 +13,12 @@ import { bus } from './engine/Bus.js'
 import { LoaderProgress } from './engine/LoaderProgress.js'
 import { AudioManager } from './audio/Audio.js'
 import content from './content/content.js'
+import { installAssetVersion } from './engine/assetVersion.js'
 
 const IGLOO_REST_N = 0.658 // progress igloo 0.495
+
+// Versi aset dipasang sebelum apa pun dimuat (LoaderProgress membungkus fetch yang sudah berversi)
+installAssetVersion()
 
 const loaderEl = document.getElementById('loader')
 // Loader dekripsi nama dipasang paling awal supaya semua muatan aset ikut terhitung
@@ -74,8 +78,23 @@ async function boot() {
   router.start()
 }
 
+// Gagal boot (WebGL2 tidak ada / dimatikan, GPU diblokir, aset gagal): jangan tinggalkan layar kosong atau
+// pesan teknis. Tampilkan pesan ramah + tombol ke profil ringkas tanpa 3D, lalu pindah otomatis ke sana.
 boot().catch((err) => {
   console.error(err)
   loader.stop()
-  loaderEl.textContent = 'WebGL2 error, cek console'
+  const quick = '/quick.html?from=no3d'
+  const box = document.createElement('div')
+  box.id = 'loader-fail'
+  const msg = document.createElement('p')
+  msg.textContent = 'The 3D view could not start in this browser. Opening the quick profile instead.'
+  const link = document.createElement('a')
+  link.href = quick
+  link.textContent = 'OPEN THE QUICK PROFILE'
+  box.append(msg, link)
+  loaderEl.removeAttribute('aria-hidden')
+  loaderEl.classList.remove('hidden')
+  loaderEl.replaceChildren(box)
+  document.getElementById('loader-quick')?.remove()
+  setTimeout(() => window.location.assign(quick), 5000)
 })

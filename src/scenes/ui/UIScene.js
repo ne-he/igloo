@@ -13,6 +13,7 @@ import { FactLabel } from './FactLabel.js'
 import { ScrollCue } from './ScrollCue.js'
 import { SectionIndex } from './SectionIndex.js'
 import { ScrollGuide } from './ScrollGuide.js'
+import { TopLinks } from './TopLinks.js'
 import content from '../../content/content.js'
 
 // Scene UI (blueprint 4.1 dan 5.6): kamera orthographic dalam piksel CSS, origin kiri atas.
@@ -120,6 +121,10 @@ export class UIScene extends Scene {
     this.add(this.scrollCue, this.sectionIndex)
     this.guide = new ScrollGuide({ engine, cue: this.scrollCue, index: this.sectionIndex, detail: () => this._detailBusy() })
     this.indexHover = -1
+    // Tombol cepat kanan atas: CV dan profil ringkas (TopLinks.js)
+    this.topLinks = new TopLinks(f, c.ui.topLinks || [])
+    this.add(this.topLinks)
+    this.topHover = -1
 
     this.writeA11y()
     bus.on('resize', ({ width, height }) => this.resize(width, height))
@@ -128,6 +133,7 @@ export class UIScene extends Scene {
       this._hoverClose(input.position)
       this._hoverSound(input.position)
       this._hoverIndex(input.position)
+      this._hoverTop(input.position)
     })
     bus.on('click', (input) => {
       if (this.detailMode && this._inClose(input.position)) bus.emit('detail_close')
@@ -135,6 +141,7 @@ export class UIScene extends Scene {
       else {
         const i = this.sectionIndex.hit(input.position)
         if (i >= 0) this.guide.jumpTo(i)
+        else this._openTop(this.topLinks.hit(input.position))
       }
     })
     // AudioManager (src/audio/Audio.js) memberi tahu status bunyi, teks ditukar dengan scramble
@@ -150,10 +157,12 @@ export class UIScene extends Scene {
     this.factLabel.forceVisible(true)
     this.scrollCue.forceVisible(true)
     this.sectionIndex.forceVisible(true)
+    this.topLinks.forceVisible(true)
     await renderer.compileAsync(this, this.camera)
     this.factLabel.forceVisible(false)
     this.scrollCue.forceVisible(false)
     this.sectionIndex.forceVisible(false)
+    this.topLinks.forceVisible(false)
     this.texts.close.visible = closeVis[0]
     this.closeFrame.visible = closeVis[1]
     renderer.initTexture(this.font.texture)
@@ -187,6 +196,14 @@ export class UIScene extends Scene {
     place(t.sound, L.sound)
     this.scrollCue.resize(L.cue)
     this.sectionIndex.resize(L.index)
+    // tombol cepat: rata kanan dengan margin yang sama dengan blok Sound, setinggi tengah logo
+    const lb = t.logo.box
+    const topSize = L.sound.size
+    this.topLinks.resize({
+      right: width - L.sound.x,
+      baseline: Math.round(-(t.logo.position.y + lb.y) + lb.height / 2 + (this.font.capHeight * topSize) / 2),
+      size: topSize,
+    })
     this._layoutClose(width)
     this._layoutSound()
     this.factLabel.resize(width, height, L.sound.size)
@@ -196,7 +213,7 @@ export class UIScene extends Scene {
       return { x0: m.position.x + bx.x - 10, y0: -(m.position.y + bx.y) - 10, x1: m.position.x + bx.x + bx.width + 10, y1: -(m.position.y + bx.y - bx.height) + 10 }
     })
     // cue scroll dan indeks section juga tidak boleh ditutup label fakta
-    for (const r of [this.scrollCue.rect, this.sectionIndex.boxRect]) {
+    for (const r of [this.scrollCue.rect, this.sectionIndex.boxRect, this.topLinks.boxRect]) {
       if (r) this.factLabel.avoid.push({ x0: r.x0 - 10, y0: r.y0 - 10, x1: r.x1 + 10, y1: r.y1 + 10 })
     }
   }
@@ -207,7 +224,26 @@ export class UIScene extends Scene {
    * tombol UI tidak ikut diproses di sana. Dipakai LinksUI.js.
    */
   hitTest(p) {
-    return (this.detailMode && this._inClose(p)) || this._inSound(p) || this.sectionIndex.hit(p) >= 0
+    return (this.detailMode && this._inClose(p)) || this._inSound(p) || this.sectionIndex.hit(p) >= 0 || this.topLinks.hit(p) >= 0
+  }
+
+  /** Hover tombol cepat kanan atas: cursor pointer + scramble ulang + "ui-long". */
+  _hoverTop(p) {
+    const i = this.introStarted && !this._detailBusy() ? this.topLinks.hit(p) : -1
+    if (i === this.topHover) return
+    this.topHover = i
+    this.topLinks.setHovered(i)
+    this.engine?.setCursor('ui_top', i >= 0)
+    if (i >= 0) bus.emit('audio_play', { name: 'ui-long' })
+  }
+
+  /** Klik tombol cepat ke-i: tab baru (CV) atau pindah halaman (profil ringkas). */
+  _openTop(i) {
+    const link = i >= 0 ? this.topLinks.links[i] : null
+    if (!link) return
+    bus.emit('audio_play', { name: 'ui-long' })
+    if (link.newTab) window.open(link.url, '_blank', 'noopener')
+    else window.location.assign(link.url)
   }
 
   /** Detail proyek terbuka atau sedang membuka/menutup: cue dan indeks section disembunyikan. */
@@ -339,6 +375,7 @@ export class UIScene extends Scene {
       if (instant) {
         this.scrollCue.setVisible(false, { instant: true })
         this.sectionIndex.setVisible(false, { instant: true })
+        this.topLinks.setVisible(false, { instant: true })
       }
       close.visible = this.closeFrame.visible = true
       if (instant) {
@@ -387,8 +424,12 @@ export class UIScene extends Scene {
     this._a11yActive(this.guide.active)
     this.sectionIndex.setVisible(this.introStarted && !this._detailBusy())
     if (this.indexHover >= 0 && this._detailBusy()) this._hoverIndex({ x: -1e9, y: -1e9 })
+    // tombol cepat: aturan tampil sama dengan indeks section (Close memakai pojok kanan atas saat detail terbuka)
+    this.topLinks.setVisible(this.introStarted && !this._detailBusy())
+    if (this.topHover >= 0 && this._detailBusy()) this._hoverTop({ x: -1e9, y: -1e9 })
     this.scrollCue.update(dt)
     this.sectionIndex.update(frame.ratio || 1)
+    this.topLinks.update(frame.ratio || 1)
   }
 
   /**
@@ -461,6 +502,17 @@ export class UIScene extends Scene {
     btn.setAttribute('aria-pressed', String(this.soundOn))
     btn.addEventListener('click', () => bus.emit('audio_mute_toggle'))
     sec.append(btn)
+    // tombol cepat kanan atas sebagai link sungguhan
+    for (const l of content.ui.topLinks || []) {
+      const a = document.createElement('a')
+      a.href = l.url
+      a.textContent = l.title || l.label
+      if (l.newTab) {
+        a.target = '_blank'
+        a.rel = 'noopener'
+      }
+      sec.append(a)
+    }
     // indeks section: lompat ke titik istirahat section (sama dengan klik indeks di kanvas)
     const nav = document.createElement('nav')
     nav.dataset.sections = ''
