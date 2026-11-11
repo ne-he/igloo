@@ -85,6 +85,9 @@ export class CrystalsScene extends BaseScene {
     this.look = { ...ICE_LOOK }
     this.raycaster = new Raycaster()
     this.raycaster.firstHitOnly = true
+    this._clickRay = new Raycaster() // raycast di posisi klik (terpisah dari raycast frost per frame)
+    this._clickRay.firstHitOnly = true
+    this._cam = null // kamera render terakhir (_lateUpdate)
     this._hit = new Vector2()
     this._frame = { time: 0, dt: 0, pointer: new Vector2(), snap: true }
     this._lastProgress = null
@@ -209,10 +212,14 @@ export class CrystalsScene extends BaseScene {
 
     // klik = geser < 15 px dan tekan < 0.5 s (Input). Rute diurus main.js lewat event 'crystal_click'.
     // Tombol OPEN dicek langsung di posisi klik (tap sentuh singkat bisa lebih cepat dari satu frame hover).
+    // Kristal juga dicek langsung di posisi klik, bukan dari hover frame lalu: tap di ponsel tidak punya hover
+    // sebelumnya (dulu tap badan kristal tidak membuka apa-apa), dan hover basi tidak boleh membuka detail saat
+    // yang diklik sebenarnya tombol UI (Sound, indeks section).
     bus.on('click', (input) => {
       if (!this.active || !this.interactive) return
+      if (this.engine.ui?.hitTest?.(input.position)) return
       const b = this._buttonAt(input.position11)
-      const i = b >= 0 ? b : this.hovered
+      const i = b >= 0 ? b : this._crystalAt(input.position11)
       if (i >= 0) bus.emit('crystal_click', { index: i })
     })
     // klik / sentuh di mana pun = pengunjung tidak diam, hitungan ajakan mulai lagi
@@ -372,6 +379,18 @@ export class CrystalsScene extends BaseScene {
       if (r && l.visible && pointInRect(p.x, p.y, { x0: r.x0 - padX, y0: r.y0 - padY, x1: r.x1 + padX, y1: r.y1 + padY })) {
         return t
       }
+    }
+    return -1
+  }
+
+  /** Kristal (yang sedang dekat titik tengah) di bawah titik layar p11 (-1..1), -1 kalau tidak ada. */
+  _crystalAt(p11) {
+    if (!this._cam) return -1
+    this._clickRay.setFromCamera(p11, this._cam)
+    for (let t = 0; t < this.crystals.length; t++) {
+      const c = this.crystals[t]
+      if (Math.abs(c.center - this.progress) >= FROST_RANGE) continue
+      if (this._clickRay.intersectObject(c.mesh, false).length) return t
     }
     return -1
   }
@@ -537,6 +556,7 @@ export class CrystalsScene extends BaseScene {
     const pointScale = this.engine.globals.uResolution.value.y / 1300
     const reduced = !!this._mqReduced?.matches
     camera.updateMatrixWorld()
+    this._cam = camera
     this.raycaster.setFromCamera(f.pointer, camera)
     this._updateNudge(f.dt, f.time)
     let hovered = -1

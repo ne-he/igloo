@@ -3,6 +3,7 @@ import gsap from 'gsap'
 import { MsdfText } from '../../text/MsdfText.js'
 import { bus } from '../../engine/Bus.js'
 import { lerpFPS } from '../../engine/math.js'
+import { SoftPlate } from '../ui/uiParts.js'
 
 // Carousel link ruang entry (skill ref 01 bagian 6.5, blueprint 5.5 baris "Carousel link").
 // UI hidup di DALAM scene entry (kena grade entry + bloom, ikut transisi), ditempel ke kamera yang merender:
@@ -11,13 +12,26 @@ import { lerpFPS } from '../../engine/math.js'
 //
 // Ganti link: klik setengah kiri/kanan layar, swipe (lebih dari 100 px DAN lebih dari 1000 px/s), panah kiri/kanan.
 // Kotak "Visit" (bracket sudut + teks MSDF) membuka link di tab baru, nama link di bawahnya, tetangga redup di sisi.
+//
+// Keterbacaan (audit 10 Nov 2026): lantai ruang ini hampir putih, jadi teks dan panah putih nyaris tidak terlihat
+// dan pengunjung tidak tahu cara ganti link atau membukanya. Sekarang ada pelat tinta lembut (SoftPlate, sama
+// dengan label lain) di belakang blok Visit + nama dan di belakang tiap panah, teks lebih besar, panah punya
+// kepala penuh, dan ada satu baris petunjuk. Di layar sempit blok dinaikkan supaya tidak menabrak Sound dan
+// indeks section di pojok bawah.
 
 export const LINKS_UI = {
   active: [0.64, 0.9], // progress entry saat UI aktif (data asli)
   swipePx: 100,
   swipeVelocity: 1000, // px/s
-  textSize: 13, // px
+  textSize: 15, // px
+  hintSize: 11, // px, baris petunjuk di atas kotak Visit
   sideOffset: 170, // px, jarak nama tetangga dari tengah
+  sideOpacity: 0.62, // nama tetangga (dulu 0.32, tidak terbaca)
+  plateAlpha: 0.88, // pelat tinta di belakang blok Visit + nama
+  arrowPlateAlpha: 0.8,
+  narrow: 640, // px, di bawah ini blok dinaikkan (Sound kiri bawah, indeks section kanan bawah)
+  hint: 'ARROWS OR SWIPE TO CHANGE',
+  hintTouch: 'SWIPE OR TAP A SIDE TO CHANGE',
 }
 const D = 1 // jarak bidang HUD di depan kamera (unit dunia), jauh di atas near 0.1
 const _hud = new Matrix4()
@@ -37,10 +51,10 @@ function bracketGeometry() {
 }
 
 function arrowGeometry(dir) {
-  // garis panjang + satu kait miring di ujung (gaya "<--" tipis di ref 14), piksel
-  const L = 52
+  // garis panjang + kepala panah penuh (dua kait) di ujung, piksel
+  const L = 56
   const tip = dir < 0 ? -L / 2 : L / 2
-  const pts = [-L / 2, 0, 0, L / 2, 0, 0, tip, 0, 0, tip - dir * 7, 5, 0]
+  const pts = [-L / 2, 0, 0, L / 2, 0, 0, tip, 0, 0, tip - dir * 10, 7, 0, tip, 0, 0, tip - dir * 10, -7, 0]
   const g = new BufferGeometry()
   g.setAttribute('position', new Float32BufferAttribute(pts, 3))
   return g
@@ -76,11 +90,25 @@ export class LinksUI extends Group {
       m.baseOpacity = opacity
       return this._hudify(m)
     }
-    this.visitText = text('Visit', 71)
+    this.visitText = text('VISIT', 71)
     this.name0 = text(links[0].title, 72) // nama aktif
-    this.namePrev = text(links[links.length - 1].title, 73, 0.32)
-    this.nameNext = text(links[1 % links.length].title, 74, 0.32)
-    this.texts = [this.visitText, this.name0, this.namePrev, this.nameNext]
+    this.namePrev = text(links[links.length - 1].title, 73, LINKS_UI.sideOpacity)
+    this.nameNext = text(links[1 % links.length].title, 74, LINKS_UI.sideOpacity)
+    this.hintText = text(LINKS_UI.hint, 75, 0.8)
+    this.hintText.relayout({ size: LINKS_UI.hintSize })
+    this._touchHint = false
+    this.texts = [this.visitText, this.name0, this.namePrev, this.nameNext, this.hintText]
+
+    // pelat tinta: satu di belakang blok petunjuk + Visit + nama, satu per panah
+    const plate = () => {
+      const m = new SoftPlate()
+      m.renderOrder = 58
+      return this._hudify(m)
+    }
+    this.plate = plate()
+    this.plateL = plate()
+    this.plateR = plate()
+    this.plates = [this.plate, this.plateL, this.plateR]
 
     const lineMat = () => new LineBasicMaterial({
       color: 0xffffff, transparent: true, opacity: 0, depthTest: false, depthWrite: false, toneMapped: false,
@@ -92,7 +120,7 @@ export class LinksUI extends Group {
       l.renderOrder = 60
       l.frustumCulled = false
     }
-    this.add(...this.texts, this.bracket, this.arrowL, this.arrowR)
+    this.add(...this.plates, ...this.texts, this.bracket, this.arrowL, this.arrowR)
 
     this._bind()
     this.resize(engine.container.clientWidth, engine.container.clientHeight)
@@ -159,6 +187,7 @@ export class LinksUI extends Group {
       else this.onChange(input.position.x < this.width / 2 ? -1 : 1)
     })
     bus.on('pointer_down', (input) => {
+      this._setTouchHint(input.pointerType !== 'mouse')
       const now = performance.now()
       this._down = { x: input.position.x, t: now }
       this._move = { x: input.position.x, t: now }
@@ -203,6 +232,14 @@ export class LinksUI extends Group {
     return p.x >= r.x0 && p.x <= r.x1 && p.y >= r.y0 && p.y <= r.y1
   }
 
+  // petunjuk mengikuti alat input terakhir: sentuh = swipe / tap sisi, mouse = panah
+  _setTouchHint(touch) {
+    if (touch === this._touchHint) return
+    this._touchHint = touch
+    this.hintText.setText(touch ? LINKS_UI.hintTouch : LINKS_UI.hint)
+    if (this.layout) this.resize(this.width, this.height)
+  }
+
   visit() {
     const link = this.links[this.index]
     window.open(link.url, '_blank', 'noopener')
@@ -214,9 +251,12 @@ export class LinksUI extends Group {
     this.height = Math.max(1, height)
     const boxW = visitWidth(width, height)
     const boxH = boxW / 3.125
-    const boxY = -height / 2 + Math.max(70, height * 0.13) // tengah kotak, piksel dari tengah layar
-    const nameY = boxY - boxH / 2 - 24
-    this.layout = { boxW, boxH, boxY, nameY }
+    // tengah kotak, piksel dari tengah layar. Layar sempit: dinaikkan supaya baris nama di atas Sound dan indeks section
+    const narrow = width < LINKS_UI.narrow
+    const boxY = -height / 2 + (narrow ? 178 : Math.max(84, height * 0.14))
+    const nameY = boxY - boxH / 2 - 26
+    const hintY = boxY + boxH / 2 + 18
+    this.layout = { boxW, boxH, boxY, nameY, hintY }
     // bracket sudut
     const hx = boxW / 2
     const hy = boxH / 2
@@ -238,6 +278,7 @@ export class LinksUI extends Group {
     const cap = LINKS_UI.textSize * 0.35
     this.visitText.position.set(0, boxY - cap, 0)
     this.name0.position.set(0, nameY - cap, 0)
+    this.hintText.position.set(0, hintY - LINKS_UI.hintSize * 0.35, 0)
     const side = Math.min(LINKS_UI.sideOffset, width * 0.3)
     this.namePrev.position.set(-side, nameY - cap, 0)
     this.nameNext.position.set(side, nameY - cap, 0)
@@ -245,6 +286,22 @@ export class LinksUI extends Group {
     const ax = width / 2 - Math.max(60, width * 0.13)
     this.arrowL.position.set(-ax, 0, 0)
     this.arrowR.position.set(ax, 0, 0)
+    // pelat: blok tengah selebar baris nama (atau petunjuk), dari atas petunjuk sampai bawah nama
+    const blockW = Math.min(width - 24, Math.max(2 * side + 130, (this.hintText.box?.width ?? 0) + 40, boxW + 40))
+    this._placePlate(this.plate, 0, (hintY + 14 + nameY - 16) / 2, blockW, hintY + 14 - (nameY - 16), 14, 8)
+    this._placePlate(this.plateL, -ax, 0, 84, 34, 10, 6)
+    this._placePlate(this.plateR, ax, 0, 84, 34, 10, 6)
+  }
+
+  /** Pelat di koordinat HUD (piksel CSS, origin tengah layar, y ke atas): pusat (cx, cy), ukuran w x h. */
+  _placePlate(plate, cx, cy, w, h, soft, radius) {
+    const u = plate.uniforms
+    u.uHalf.value.set(w / 2, h / 2)
+    u.uFull.value.set(w + 2 * soft, h + 2 * soft)
+    u.uSoft.value = soft
+    u.uRadius.value = Math.min(radius, w / 2, h / 2)
+    plate.position.set(cx, cy, 0)
+    plate.scale.set(w + 2 * soft, h + 2 * soft, 1)
   }
 
   /** Tampilkan link ke-i (dir = arah ganti, untuk kedip panah). Teks nama di-scramble ulang. */
@@ -282,12 +339,14 @@ export class LinksUI extends Group {
     if (!this.visible) return
     const s = this.show
     for (const t of this.texts) t.uniforms.uOpacity.value = s * t.baseOpacity
-    this.visitText.uniforms.uOpacity.value = s * (this.hover ? 1 : 0.85)
-    this.bracket.material.opacity = s * (this.hover ? 1 : 0.75)
+    this.visitText.uniforms.uOpacity.value = s * (this.hover ? 1 : 0.92)
+    this.bracket.material.opacity = s * (this.hover ? 1 : 0.85)
+    this.plate.uniforms.uAlpha.value = s * (LINKS_UI.plateAlpha + (this.hover ? 0.12 : 0))
+    this.plateL.uniforms.uAlpha.value = this.plateR.uniforms.uAlpha.value = s * LINKS_UI.arrowPlateAlpha
     // panah: redup diam, kedip 3 kali saat link diganti ke arahnya (gelombang kotak, igloo 225)
     const blink = (v) => (v > 0 ? (Math.floor(v * 6) % 2 === 0 ? 1 : 0.15) : 1)
-    this.arrowL.material.opacity = s * 0.7 * blink(this.flash[0])
-    this.arrowR.material.opacity = s * 0.7 * blink(this.flash[1])
+    this.arrowL.material.opacity = s * 0.95 * blink(this.flash[0])
+    this.arrowR.material.opacity = s * 0.95 * blink(this.flash[1])
   }
 
   _reveal() {
@@ -299,6 +358,7 @@ export class LinksUI extends Group {
 
   dispose() {
     for (const t of this.texts) t.dispose()
+    for (const pl of this.plates) pl.dispose()
     for (const l of [this.bracket, this.arrowL, this.arrowR]) {
       l.geometry.dispose()
       l.material.dispose()
