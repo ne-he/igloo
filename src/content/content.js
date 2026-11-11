@@ -14,11 +14,9 @@ export default {
 
   ui: {
     scrollHint: 'Scroll down to discover.', // hint lama, sekarang cuma di salinan DOM a11y
-    // cue scroll tengah bawah (ScrollCue.js), versi sentuh dan versi sesudah semua fakta igloo ketemu. ASCII saja.
+    // cue scroll tengah bawah (ScrollCue.js) dan versi sentuhnya. ASCII saja.
     scrollCue: 'SCROLL TO ENTER',
     scrollCueTouch: 'SWIPE UP TO ENTER',
-    scrollCueDone: 'ALL FOUND. NOW SCROLL',
-    scrollCueDoneTouch: 'ALL FOUND. NOW SWIPE UP',
     // indeks section kanan bawah (SectionIndex.js), urutan sama dengan SECTIONS di sections.js
     // (10 Nov 2026: WORK -> ABOUT ME, LINKS -> CONTACT, supaya orang non-IT langsung paham isinya)
     sections: ['IGLOO', 'ABOUT ME', 'CONTACT'],

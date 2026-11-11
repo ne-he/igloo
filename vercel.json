@@ -1,7 +1,8 @@
 {
   "rewrites": [
     { "source": "/portfolio/(.*)", "destination": "/index.html" },
-    { "source": "/quick", "destination": "/quick.html" }
+    { "source": "/quick", "destination": "/quick.html" },
+    { "source": "/quick/", "destination": "/quick.html" }
   ],
   "headers": [
     {

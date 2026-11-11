@@ -241,7 +241,7 @@ describe('tata letak cue dan indeks section', () => {
   })
 
   it('teks cue ASCII cetak saja (atlas font)', () => {
-    for (const k of ['scrollCue', 'scrollCueTouch', 'scrollCueDone', 'scrollCueDoneTouch']) {
+    for (const k of ['scrollCue', 'scrollCueTouch']) {
       expect(content.ui[k]).toMatch(/^[\x20-\x7e]+$/)
     }
     for (const s of content.ui.sections) expect(s).toMatch(/^[\x20-\x7e]+$/)
