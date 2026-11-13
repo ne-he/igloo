@@ -42,6 +42,8 @@ const _ringPos = new Vector3()
 export class EntryScene extends BaseScene {
   constructor(section) {
     super(section, { fov: 22 })
+    // presim partikel di upload() membaca aspect / resolusi: precompile tunggu resize() (Engine.init)
+    this.uploadEarly = false
     this.background = new Color('#a9b0be')
     this.camera.displacement.set(0.01, 0.005)
     // posisi dan target dihaluskan di ruang timeline (CameraFollow), bukan di 3D: BaseCamera tidak me-lerp lagi,
@@ -77,8 +79,8 @@ export class EntryScene extends BaseScene {
         loadTexture('triangles_tiling.png', 'repeat'),
         loadTexture('wind_noise.png', 'repeat'),
         loadTexture('blue_noise_128.png', 'data-repeat-nearest'),
-        loadTexture('transition_mask.png', 'data-repeat'),
-        loadTexture('blurrytext_atlas.png', 'mask'),
+        loadTexture('transition_mask.webp', 'data-repeat'),
+        loadTexture('blurrytext_atlas.webp', 'mask'),
         fetch('/assets/textures/blurrytext_atlas.json').then((r) => r.json()),
       ])
     const [volumes, font] = await Promise.all([

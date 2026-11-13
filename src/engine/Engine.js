@@ -14,6 +14,7 @@ import { SceneComposer } from './SceneComposer.js'
 import { AdaptiveDPR } from './AdaptiveDPR.js'
 import { renderTargetType } from './rtType.js'
 import { CompositeMaterial, createFullscreenTriangle } from '../compositor/CompositeMaterial.js'
+import { compileToTarget } from './BaseScene.js'
 
 gsap.registerPlugin(CustomEase)
 // Ease hasil bedah (blueprint 6.5).
@@ -226,20 +227,43 @@ export class Engine {
   }
 
   async init() {
-    // Bangun semua scene paralel, lalu precompile satu per satu (blueprint 2 nomor 15).
-    const ui = this.ui ? [this.ui.build(this)] : []
-    const detail = this.detail ? [this.detail.build(this)] : []
-    await Promise.all([...this.scenes.map((s) => s.build(this)), ...ui, ...detail, this.composite.loadTextures()])
-    this.resize()
+    // Bangun semua scene paralel, precompile satu per satu (blueprint 2 nomor 15). Precompile dipipa (13 Nov 2026):
+    // scene dengan uploadEarly di-upload begitu build-nya selesai, masih berurutan satu per satu, sementara aset
+    // scene lain masih diunduh (di jaringan lambat unduhan yang paling lama, compile dulu menunggu di belakangnya).
+    // Scene yang butuh ukuran layar (entry: presim partikel, UI: layout) tetap sesudah semua build + resize().
+    // performance.mark per fase (murah, dibaca tools/verify/load_phases.py): build:<key>, upload:<key>, init
+    const mark = (name) => performance.mark?.(name)
+    const keyOf = (s) => (s === this.ui ? 'ui' : s === this.detail ? 'detail' : s.key)
+    const all = [...this.scenes, this.detail, this.ui].filter(Boolean)
+    const early = (s) => s.uploadEarly === true
     // tahap precompile, dilaporkan ke loader ASCII (LoaderProgress) sebagai pecahan 0..1
-    const uploads = [...this.scenes, this.detail, this.ui].filter(Boolean)
     let done = 0
-    bus.emit('init_progress', 0)
-    for (const s of uploads) {
-      await s.upload(this.renderer)
-      bus.emit('init_progress', ++done / (uploads.length + 1))
+    let chain = Promise.resolve()
+    const upload = (s) => {
+      chain = chain.then(async () => {
+        mark(`upload:${keyOf(s)}:start`)
+        await s.upload(this.renderer)
+        mark(`upload:${keyOf(s)}:end`)
+        bus.emit('init_progress', ++done / (all.length + 1))
+      })
+      chain.catch(() => {}) // gagal dilempar lewat await chain di bawah, bukan sebagai rejection tak tertangani
     }
-    await this.renderer.compileAsync(this.mainScene, this.mainCamera)
+    mark('init:start')
+    bus.emit('init_progress', 0)
+    const builds = all.map((s) => s.build(this).then(() => {
+      mark(`build:${keyOf(s)}:end`)
+      if (early(s)) upload(s)
+    }))
+    await Promise.all([...builds, this.composite.loadTextures()])
+    mark('init:built')
+    this.resize()
+    for (const s of all) if (!early(s)) upload(s)
+    await chain
+    // composite juga dirender ke RT composer, jadi compile varian RT (lihat BaseScene.upload)
+    const rt = new WebGLRenderTarget(2, 2, { type: this.rtType })
+    await compileToTarget(this.renderer, this.mainScene, this.mainCamera, rt)
+    rt.dispose()
+    mark('init:end')
     bus.emit('init_progress', 1)
   }
 

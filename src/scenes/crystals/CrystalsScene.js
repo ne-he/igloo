@@ -5,7 +5,7 @@ import {
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js'
 import gsap from 'gsap'
 import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh'
-import { BaseScene } from '../../engine/BaseScene.js'
+import { BaseScene, compileToTarget } from '../../engine/BaseScene.js'
 import { loadGeometry, loadTexture } from '../../engine/Assets.js'
 import { makeLutTexture, LutMaterial } from '../../grade/Lut.js'
 import { CRYSTAL_COUNT, crystalCenter } from '../sections.js'
@@ -125,13 +125,13 @@ export class CrystalsScene extends BaseScene {
         loadTexture('blue_noise_128.png', 'data-repeat-nearest'),
         loadTexture('perlin.png', 'repeat'),
         loadTexture('dot_pattern.png', 'repeat'),
-        loadTexture('blurrytext_atlas.png', 'mask'),
-        loadTexture('shapes_blurred.png', 'mask'),
+        loadTexture('blurrytext_atlas.webp', 'mask'),
+        loadTexture('shapes_blurred.webp', 'mask'),
         loadTexture('wind_noise.png', 'repeat'),
         this._loadEnv(engine.renderer),
         fetch('/assets/textures/blurrytext_atlas.json').then((r) => r.json()),
         MsdfFont.load(FONT_URL),
-        loadTexture('crystals_advect.png', 'data-repeat'),
+        loadTexture('crystals_advect.webp', 'data-repeat'),
         loadTexture('triangles_tiling.png', 'repeat'),
       ])
 
@@ -307,7 +307,8 @@ export class CrystalsScene extends BaseScene {
     await super.upload(renderer)
     if (REFRACTION !== 'custom') return
     this._setPass('A')
-    await renderer.compileAsync(this, this.camera)
+    // pass A dirender ke _transmissionRT: compile varian RT (lihat BaseScene.upload)
+    await compileToTarget(renderer, this, this.camera, this._transmissionRT)
     this._setPass('B')
   }
 

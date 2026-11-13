@@ -6,6 +6,8 @@ Menghitung public/assets per jenis (folder + ekstensi). Batas keras blueprint 8.
 MUATAN AWAL TANPA AUDIO (audio baru diunduh setelah loader hilang). Audio dicek terpisah terhadap
 budget audio (1.5 MB). --include-audio memasukkan audio ke batas 12 MB juga (mode ketat).
 public/draco (decoder wasm) ikut dihitung di muatan awal karena wajib sebelum geometri bisa dibaca.
+PNG lama yang sudah diganti WebP lossless (ada <nama>.webp di sebelahnya dan <nama>.png tidak disebut lagi di src/)
+masih disimpan di disk tapi tidak pernah diunduh, jadi dilaporkan terpisah dan tidak masuk hitungan.
 """
 import argparse
 import os
@@ -26,6 +28,28 @@ def walk(base):
             yield p, os.path.getsize(p)
 
 
+def superseded(path, src_text):
+    """PNG yang sudah diganti WebP lossless dan tidak dirujuk kode lagi (tidak pernah diunduh)."""
+    stem, ext = os.path.splitext(path)
+    name = os.path.basename(path)
+    return ext.lower() == '.png' and os.path.exists(stem + '.webp') and name not in src_text
+
+
+def read_src():
+    parts = []
+    for base in (os.path.join(ROOT, 'src'), ):
+        for p, _ in walk(base):
+            if p.endswith(('.js', '.json', '.glsl', '.frag', '.vert')):
+                with open(p, encoding='utf-8', errors='ignore') as f:
+                    parts.append(f.read())
+    for f in ('index.html', 'quick.html'):
+        p = os.path.join(ROOT, f)
+        if os.path.exists(p):
+            with open(p, encoding='utf-8', errors='ignore') as fh:
+                parts.append(fh.read())
+    return '\n'.join(parts)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--limit-mb', type=float, default=12.0)
@@ -34,8 +58,13 @@ def main():
 
     by_type = defaultdict(lambda: [0, 0])  # (folder, ext) -> [jumlah file, byte]
     audio = initial = 0
+    src_text = read_src()
+    skipped = []
     for p, size in walk(ASSETS):
         rel = os.path.relpath(p, ASSETS)
+        if superseded(p, src_text):
+            skipped.append((rel, size))
+            continue
         folder = rel.split(os.sep)[0] if os.sep in rel else '.'
         ext = os.path.splitext(p)[1].lower() or '(tanpa)'
         by_type[(folder, ext)][0] += 1
@@ -55,6 +84,8 @@ def main():
         print(f'{folder:12s} {ext:8s} {n:5d} {size / MB:8.3f}')
     total = initial + audio
     print('-' * 36)
+    for rel, size in skipped:
+        print(f'tidak dimuat (diganti .webp): {rel} {size / MB:.3f} MB')
     print(f'muatan awal (tanpa audio, + draco): {initial / MB:7.3f} MB')
     print(f'audio (setelah loader):             {audio / MB:7.3f} MB  (budget {AUDIO_LIMIT_MB} MB)')
     print(f'total public/assets + draco:        {total / MB:7.3f} MB')

@@ -2,6 +2,15 @@ import { Scene, WebGLRenderTarget, HalfFloatType } from 'three'
 import { BaseCamera } from './BaseCamera.js'
 import { renderTargetType } from './rtType.js'
 
+/** compileAsync dengan `target` terpasang (varian shader yang sama dengan render ke RT), target lama dikembalikan. */
+export function compileToTarget(renderer, scene, camera, target) {
+  const prev = renderer.getRenderTarget()
+  renderer.setRenderTarget(target)
+  const done = renderer.compileAsync(scene, camera)
+  renderer.setRenderTarget(prev)
+  return done
+}
+
 /**
  * Satu section = satu Scene dengan kamera dan composer sendiri.
  * Subclass mengisi: async build(engine), update(frame), onShow(), onHide().
@@ -16,6 +25,9 @@ export class BaseScene extends Scene {
     this.composer = null // dipasang Engine
     this.progress = 0
     this._active = false
+    // true = upload() tidak butuh ukuran layar, jadi Engine.init boleh menjalankannya begitu build() selesai,
+    // sementara scene lain masih mengunduh. Scene yang upload-nya membaca aspect / layout mengisi false.
+    this.uploadEarly = true
   }
 
   get active() {
@@ -49,7 +61,13 @@ export class BaseScene extends Scene {
       o.visible = true
       o.frustumCulled = false
     })
-    await renderer.compileAsync(this, this.camera)
+    // Kunci cache program three ikut render target (outputColorSpace): scene selalu dirender ke RT, jadi compile
+    // juga harus dengan RT terpasang. Dulu compile tanpa target = varian layar yang tidak pernah dipakai, lalu
+    // render 2x2 di bawah meng-compile varian RT secara sinkron (memblok). Target hanya dibaca saat compile()
+    // sinkron di awal compileAsync, jadi langsung dikembalikan sebelum menunggu.
+    const rt = new WebGLRenderTarget(2, 2, { type: renderTargetType(renderer, HalfFloatType) })
+    await compileToTarget(renderer, this, this.camera, rt)
+    performance.mark?.(`upload:${this.key}:compiled`)
     this.traverse((o) => {
       const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : []
       for (const m of mats) {
@@ -62,7 +80,7 @@ export class BaseScene extends Scene {
         }
       }
     })
-    const rt = new WebGLRenderTarget(2, 2, { type: renderTargetType(renderer, HalfFloatType) })
+    performance.mark?.(`upload:${this.key}:textures`)
     renderer.setRenderTarget(rt)
     renderer.render(this, this.camera)
     renderer.setRenderTarget(null)

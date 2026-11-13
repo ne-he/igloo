@@ -1,7 +1,5 @@
-import {
-  ShaderMaterial, BufferGeometry, Float32BufferAttribute, Mesh, Vector2, TextureLoader,
-  RepeatWrapping, LinearFilter, NearestFilter, NoColorSpace,
-} from 'three'
+import { ShaderMaterial, BufferGeometry, Float32BufferAttribute, Mesh, Vector2 } from 'three'
+import { loadTexture } from '../engine/Assets.js'
 import '../glsl/chunks.js'
 import { FULLSCREEN_VERT } from '../glsl/chunks.js'
 import fragmentShader from './composite.frag?raw'
@@ -14,17 +12,6 @@ export function createFullscreenTriangle(material) {
   const mesh = new Mesh(g, material)
   mesh.frustumCulled = false
   return mesh
-}
-
-/** Tekstur data: linear (bukan sRGB), repeat, tanpa mipmap. */
-async function loadDataTexture(url, filter) {
-  const tex = await new TextureLoader().loadAsync(url)
-  tex.colorSpace = NoColorSpace
-  tex.wrapS = tex.wrapT = RepeatWrapping
-  tex.minFilter = tex.magFilter = filter
-  tex.generateMipmaps = false
-  tex.needsUpdate = true
-  return tex
 }
 
 export class CompositeMaterial extends ShaderMaterial {
@@ -50,10 +37,15 @@ export class CompositeMaterial extends ShaderMaterial {
     })
   }
 
-  async loadTextures(base = '/assets/textures/') {
+  /**
+   * Tekstur data: linear (bukan sRGB), repeat, tanpa mipmap. Lewat cache Assets dengan mode yang sama persis
+   * dengan EntryScene / CrystalsScene, jadi satu request dan satu upload GPU dipakai bersama (dulu dimuat dua kali).
+   * Mask = WebP lossless (piksel identik dengan PNG lama, 0.35 MB vs 0.47 MB).
+   */
+  async loadTextures() {
     const [mask, blue] = await Promise.all([
-      loadDataTexture(`${base}transition_mask.png`, LinearFilter),
-      loadDataTexture(`${base}blue_noise_128.png`, NearestFilter),
+      loadTexture('transition_mask.webp', 'data-repeat'),
+      loadTexture('blue_noise_128.png', 'data-repeat-nearest'),
     ])
     this.uniforms.tMask.value = mask
     this.uniforms.tBlue.value = blue

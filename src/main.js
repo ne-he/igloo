@@ -17,6 +17,8 @@ import { installAssetVersion } from './engine/assetVersion.js'
 
 const IGLOO_REST_N = 0.658 // progress igloo 0.495
 
+// bundle selesai diunduh, di-parse dan dievaluasi (fase muat diukur tools/verify/load_phases.py)
+performance.mark?.('boot:start')
 // Versi aset dipasang sebelum apa pun dimuat (LoaderProgress membungkus fetch yang sudah berversi)
 installAssetVersion()
 
@@ -41,6 +43,7 @@ async function boot() {
   }
 
   await engine.init()
+  performance.mark?.('boot:init')
   // Panel teks proyek hidup di scene UI (tidak kena transisi), memakai font UI dan sim mouse detail.
   const panel = new DetailPanel(ui.font, detail.sim.uniform, engine.globals, engine)
   ui.add(panel)
