@@ -204,7 +204,9 @@ describe('tata letak cue dan indeks section', () => {
     it(`${w}x${h}: cue di tengah, garis berakhir di baris Sound, indeks rata kanan di margin`, () => {
       const L = computeUILayout(w, h, m)
       close(L.cue.x, w / 2)
-      close(L.cue.trackBottom, L.sound.baseline)
+      // ponsel (13 Nov 2026): garis berhenti di atas baris Sound karena indeks kini satu baris di sana
+      if (w < 640) expect(L.cue.trackBottom).toBeLessThan(L.sound.baseline - font.capHeight * L.sound.size)
+      else close(L.cue.trackBottom, L.sound.baseline)
       expect(L.cue.trackTop).toBeLessThan(L.cue.trackBottom)
       expect(L.cue.baseline).toBeLessThan(L.cue.trackTop)
       const compact = L.index.compact
@@ -214,8 +216,11 @@ describe('tata letak cue dan indeks section', () => {
       // item terlebar menempel margin kanan, baris terakhir di baseline Sound
       close(Math.max(...I.items.map((it) => it.x + it.width)), L.index.right)
       close(I.items[2].baseline, L.sound.baseline)
-      // area klik bersambung tanpa celah dan menutup teks
-      for (let i = 1; i < I.hits.length; i++) close(I.hits[i].y0, I.hits[i - 1].y1)
+      // area klik bersambung tanpa celah dan menutup teks (ponsel: kolom berjajar, desktop: baris bertumpuk)
+      for (let i = 1; i < I.hits.length; i++) {
+        if (compact) close(I.hits[i].x0, I.hits[i - 1].x1)
+        else close(I.hits[i].y0, I.hits[i - 1].y1)
+      }
       I.items.forEach((it, i) => {
         expect(I.hits[i].x0).toBeLessThan(it.x)
         expect(I.hits[i].x1).toBeGreaterThan(it.x + it.width)
@@ -224,7 +229,9 @@ describe('tata letak cue dan indeks section', () => {
       const cueText = layoutText(font, compact ? content.ui.scrollCueTouch : content.ui.scrollCue,
         { size: L.cue.size, letterSpacing: L.cue.letterSpacing }).width
       const cueRight = L.cue.x + cueText / 2 + 1 * L.cue.size
-      expect(cueRight).toBeLessThan(I.box.x0)
+      // ponsel: indeks satu baris di bawah pelat teks cue (pelat 0.72 em di bawah baseline), desktop: di kanannya
+      if (compact) expect(L.cue.baseline + 0.72 * L.cue.size).toBeLessThan(I.box.y0)
+      else expect(cueRight).toBeLessThan(I.box.x0)
       // garis cue di kanan blok Sound (teks + ikon), teks cue di atas baris Sound
       const soundRight = L.sound.x + layoutText(font, 'Sound: Off', { size: L.sound.size }).width + 2 * L.sound.size
       expect(soundRight).toBeLessThan(L.cue.x)
@@ -232,7 +239,7 @@ describe('tata letak cue dan indeks section', () => {
     })
   }
 
-  it('ponsel: nomor saja, baris lebih renggang (target sentuh), teks cue di atas baris teratas indeks', () => {
+  it('ponsel: nomor saja satu baris, area klik setinggi baris renggang, teks cue di atas indeks', () => {
     const L = computeUILayout(375, 812, m)
     const I = layoutSectionIndex(L.index, widths(L, true), font.capHeight)
     expect(I.hits[0].y1 - I.hits[0].y0).toBeGreaterThanOrEqual(UI_RATIOS.indexLineHeightCompact * L.index.size - 1e-6)

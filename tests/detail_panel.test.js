@@ -127,8 +127,10 @@ describe('tata letak panel detail', () => {
         expect(L.scrollMax).toBeGreaterThan(0)
         const last = L.links.chips[L.links.chips.length - 1]
         const yOnScreen = last.y - L.scrollMax
-        expect(yOnScreen).toBeGreaterThan(2 * PANEL.margin)
-        expect(yOnScreen).toBeLessThanOrEqual(h - 2 * PANEL.margin)
+        // margin area scroll mengecil di layar pendek (panelMargin), 65 di layar biasa
+        expect(L.margin).toBeLessThanOrEqual(PANEL.margin)
+        expect(yOnScreen).toBeGreaterThan(2 * L.margin)
+        expect(yOnScreen).toBeLessThanOrEqual(h - 2 * L.margin)
       }
     }
   })

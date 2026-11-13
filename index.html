@@ -48,7 +48,8 @@
       /* jalan pintas ke profil ringkas tanpa 3D (quick.html): muncul setelah 3 s supaya muatan cepat tidak berkedip */
       #loader-quick { position: fixed; z-index: 3; left: 0; right: 0; bottom: max(26px, env(safe-area-inset-bottom)); text-align: center; font: 500 12px/1 'IglooPlexMono', 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
         letter-spacing: 0.08em; color: #fff; text-decoration: none; opacity: 0; animation: loader-quick 0.6s 3s forwards; }
-      #loader-quick span { padding: 9px 12px; background: rgba(30, 30, 44, 0.34); border-radius: 3px; }
+      /* inline-block 40 px tinggi: target jari, dan tidak pecah baris di layar 360 px */
+      #loader-quick span { display: inline-block; padding: 14px 14px; white-space: nowrap; background: rgba(30, 30, 44, 0.34); border-radius: 3px; }
       #loader-quick:hover span, #loader-quick:focus-visible span { background: rgba(30, 30, 44, 0.6); }
       #loader.hidden ~ #loader-quick { visibility: hidden; }
       @keyframes loader-quick { to { opacity: 0.95; } }

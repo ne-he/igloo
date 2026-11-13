@@ -3,6 +3,7 @@ import { MsdfText } from '../../text/MsdfText.js'
 import { clamp } from '../../engine/math.js'
 import { LabelPlate, INK } from './LabelParts.js'
 import { clampShift } from './nudge.js'
+import { uiTopZones, TOUCH_TARGET } from '../ui/layout.js'
 
 // Label 3D tiap kristal (skill ref 01 bagian 6.3, ref 02 bagian 6.7). Mesh MSDF di dalam scene (bukan DOM),
 // jadi ikut grade, bloom, dan wipe transisi. Tiap label menempel ke satu titik bounding box kristal
@@ -23,6 +24,8 @@ import { clampShift } from './nudge.js'
 //  - (26 Okt 2026) Pengunjung non-IT harus langsung tahu kristal ini tentang apa: blok judul sekarang
 //    kicker kecil NEMI_SEC_0X lalu kata section BESAR (project.heading, huruf kapital, 3x ukuran label),
 //    meniru judul section raksasa ICEBERG v2 (.bigword + .bigword-code). Bayangan kata besar 2 px.
+//  - (13 Nov 2026, audit responsif) Blok yang naik ke baris UI atas (logo, tombol cepat) diturunkan, dan kotak klik
+//    tombol OPEN minimal BUTTON.minHit px supaya enak di-tap (ditambah 6 px tiap sisi oleh CrystalsScene).
 
 export const LABELS = {
   title: 0.13, date: 0.13, temp: 0.105, button: 0.115, nudge: 0.1,
@@ -65,6 +68,7 @@ export const BUTTON = {
   frameHi: 0.95,
   fillAlpha: 0.92, // isi putih saat hot penuh
   nudgeGap: 0.7, // em teks ajakan, bawah bingkai ke atas huruf ajakan
+  minHit: TOUCH_TARGET - 12, // px, sisi terpendek kotak klik sebelum diperbesar 6 px tiap sisi (CrystalsScene)
 }
 
 // f = faktor campuran bbox (0 = min, 1 = max) di ruang lokal kristal, o = geser (kiri, atas) dalam satuan skala,
@@ -365,7 +369,9 @@ export class CrystalLabels extends Group {
     // sendiri. Sisanya digeser masuk. Mengembalikan offset x isi (0 = normal, -(u0 + u1) = cermin).
     // u0..u1 = rentang garis bawah tempat siku menempel (default sama dengan isi). mirror false = hanya digeser
     // (judul: garis penunjuknya datang dari bawah garis bawah, jadi geseran tidak pernah memotong teks).
-    const block = (l, c0, c1, pad, u0 = c0, u1 = c1, mirror = true) => {
+    // yt = puncak isi (unit label, relatif siku), dipakai menjauhkan blok dari baris UI atas
+    const zones = uiTopZones(width, height)
+    const block = (l, c0, c1, pad, u0 = c0, u1 = c1, mirror = true, yt = 0) => {
       const trySide = (side) => {
         _q.copy(l.anchor).addScaledVector(_right, -l.spec.o[0] * s * side).addScaledVector(_up, l.spec.o[1] * s)
         const off = side > 0 ? 0 : -(u0 + u1)
@@ -383,6 +389,19 @@ export class CrystalLabels extends Group {
       l.side = pick.side
       l.shift = pick.shift
       l.elbow.copy(pick.elbow).addScaledVector(_right, pick.shift)
+      // blok yang menyentuh zona logo / tombol cepat diturunkan sampai di bawahnya (piksel layar, y ke bawah)
+      _p.copy(l.elbow).sub(camera.position)
+      const pw = (2 * Math.max(0.1, _p.dot(_fwd)) * tanH) / height // ukuran 1 px di kedalaman siku
+      const ex = _p.dot(_right) / pw + width / 2
+      const ey = height / 2 - _p.dot(_up) / pw
+      const sx0 = ex + ((c0 + pick.off - pad) * s) / pw
+      const sx1 = ex + ((c1 + pick.off + pad) * s) / pw
+      const sTop = ey - ((yt + pad) * s) / pw
+      let down = 0
+      for (const z of zones) {
+        if (sx1 > z.x0 && sx0 < z.x1 && sTop < z.y1) down = Math.max(down, z.y1 - sTop)
+      }
+      if (down > 0) l.elbow.addScaledVector(_up, -down * pw)
       return pick.off
     }
     // titik dunia dari koordinat (x kanan, y atas) unit label relatif siku
@@ -411,7 +430,7 @@ export class CrystalLabels extends Group {
       const kBase = hBase + capH * H + TITLE.kickerGap
       const top = kBase + capH * T
       const em = (T * TITLE.pad) / st.pad // em pelat: pad = TITLE.pad x em kicker
-      const off = block(l, -w, 0, st.pad * em, -w, 0, false)
+      const off = block(l, -w, 0, st.pad * em, -w, 0, false, top)
       this.heading.place(at(_p, l, -w + off, hBase), q, s, TITLE.headingShadowPx)
       this.kicker.place(at(_p, l, -w + off, kBase), q, s)
       // blok lebar digeser ke kanan oleh tepi kiri layar (ponsel): garis penunjuk tetap naik ke titik siku
@@ -446,7 +465,7 @@ export class CrystalLabels extends Group {
       const bottom = fBot + (nBase - 0.12 * N - fBot) * nk
       // teks ajakan rata kanan di x = w, kalau lebih lebar dari blok ia menjorok ke kiri siku
       const nLeft = Math.min(0, w - this.nudgeText.box.width)
-      const off = block(l, nLeft, w, st.pad * D, 0, w)
+      const off = block(l, nLeft, w, st.pad * D, 0, w, true, top)
       const R = w + off // ujung kanan garis bawah (x unit label relatif siku)
       this.date.place(at(_p, l, R, 0.05), q, s)
       this.button.place(at(_p, l, R - bw / 2, fTop - bh / 2 - (capH * B) / 2), q, s)
@@ -481,7 +500,10 @@ export class CrystalLabels extends Group {
           y0 = Math.min(y0, _q.y)
           y1 = Math.max(y1, _q.y)
         }
-        this.buttonRect = { x0, y0, x1, y1 }
+        // kotak klik minimal BUTTON.minHit px tiap sisi (NDC: 1 px = 2 / ukuran layar)
+        const mx = Math.max(0, (BUTTON.minHit * 2) / width - (x1 - x0)) / 2
+        const my = Math.max(0, (BUTTON.minHit * 2) / height - (y1 - y0)) / 2
+        this.buttonRect = { x0: x0 - mx, y0: y0 - my, x1: x1 + mx, y1: y1 + my }
       }
     }
     // TEMP: siku = kiri tengah tulisan TEMP, angka rata kanan di kolom kanan, garis 1 ruas
@@ -491,7 +513,7 @@ export class CrystalLabels extends Group {
       const cap = capH * T
       const lh = this.tempValue.layout.lineHeight * T
       const colRight = this.tempLabel.box.width + 0.03 + 0.42
-      const off = block(l, 0, colRight, st.pad * T, 0, colRight + 0.03)
+      const off = block(l, 0, colRight, st.pad * T, 0, colRight + 0.03, true, cap * 0.5)
       this.tempLabel.place(at(_p, l, 0.03 + off, -cap * 0.5), q, s)
       this.tempValue.place(at(_p, l, colRight + off, -cap * 0.5), q, s)
       l.path = [l.anchor.clone(), l.elbow.clone()]

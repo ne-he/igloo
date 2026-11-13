@@ -16,8 +16,13 @@ import { SoftPlate } from '../ui/uiParts.js'
 // Keterbacaan (audit 10 Nov 2026): lantai ruang ini hampir putih, jadi teks dan panah putih nyaris tidak terlihat
 // dan pengunjung tidak tahu cara ganti link atau membukanya. Sekarang ada pelat tinta lembut (SoftPlate, sama
 // dengan label lain) di belakang blok Visit + nama dan di belakang tiap panah, teks lebih besar, panah punya
-// kepala penuh, dan ada satu baris petunjuk. Di layar sempit blok dinaikkan supaya tidak menabrak Sound dan
-// indeks section di pojok bawah.
+// kepala penuh, dan ada satu baris petunjuk.
+//
+// Audit responsif 13 Nov 2026 (linksLayout): blok dulu dinaikkan angka tetap 178 px di layar sempit, dan di tablet
+// portrait tetap menabrak indeks section. Sekarang blok ditaruh serendah posisi biasanya, lalu menghindari kotak UI
+// bawah yang terlihat (Sound, indeks): blok dipersempit dulu kalau cukup, baru dinaikkan kalau tidak, jadi bentuk
+// partikel di atasnya tertutup sesedikit mungkin. Layar pendek (ponsel landscape) memakai kotak Visit kecil dan
+// jarak baris lebih rapat. Panah di layar ultrawide dibatasi jaraknya dari tengah supaya tetap dekat bentuknya.
 
 export const LINKS_UI = {
   active: [0.64, 0.9], // progress entry saat UI aktif (data asli)
@@ -29,18 +34,73 @@ export const LINKS_UI = {
   sideOpacity: 0.62, // nama tetangga (dulu 0.32, tidak terbaca)
   plateAlpha: 0.88, // pelat tinta di belakang blok Visit + nama
   arrowPlateAlpha: 0.8,
-  narrow: 640, // px, di bawah ini blok dinaikkan (Sound kiri bawah, indeks section kanan bawah)
+  short: 500, // px tinggi, di bawah ini kotak Visit kecil dan baris rapat
+  minSide: 110, // px, jarak nama tetangga dari tengah paling kecil saat blok dipersempit
+  clear: 10, // px, jarak blok ke kotak UI bawah
+  bottom: 12, // px, jarak blok ke tepi bawah layar
+  arrowMaxH: 0.66, // jarak panah dari tengah paling jauh, kelipatan tinggi layar (ultrawide)
   hint: 'ARROWS OR SWIPE TO CHANGE',
   hintTouch: 'SWIPE OR TAP A SIDE TO CHANGE',
 }
 const D = 1 // jarak bidang HUD di depan kamera (unit dunia), jauh di atas near 0.1
 const _hud = new Matrix4()
 
-/** Ukuran kotak Visit per breakpoint (igloo 220 / 180 / 150 px, aspek 3.125). */
+/** Ukuran kotak Visit per breakpoint (igloo 220 / 180 / 150 px, aspek 3.125). Layar pendek ikut kecil. */
 function visitWidth(w, h) {
-  if (w < 640) return 150
+  if (w < 640 || h < LINKS_UI.short) return 150
   if (w < 1600 || h < 800) return 180
   return 220
+}
+
+/**
+ * Tata letak blok ruang link (logika murni, dites di tests/responsive.test.js).
+ * Koordinat HUD: piksel CSS dari tengah layar, y ke atas. obstacles = kotak UI bawah yang terlihat (piksel CSS,
+ * origin kiri atas, y ke bawah), hintWidth = lebar teks petunjuk.
+ * @returns {{boxW, boxH, boxY, nameY, hintY, side, blockW, plateY, plateH, ax, plateRect}}
+ *   plateRect = kotak pelat blok dalam piksel CSS y ke bawah (tanpa tepi lembut)
+ */
+export function linksLayout(width, height, { hintWidth = 0, obstacles = [] } = {}) {
+  const L = LINKS_UI
+  const boxW = visitWidth(width, height)
+  const boxH = boxW / 3.125
+  const short = height < L.short
+  const nameGap = short ? 21 : 26 // tengah kotak Visit ke baris nama, di luar setengah tinggi kotak
+  const hintGap = short ? 15 : 18
+  const padTop = short ? 12 : 14 // pelat di atas baris petunjuk
+  const padBot = short ? 13 : 16 // pelat di bawah baris nama
+  const maxW = width - 24
+  const blockOf = (side) => Math.min(maxW, Math.max(2 * side + 130, hintWidth + 40, boxW + 40))
+  let side = Math.min(L.sideOffset, width * 0.3)
+  let blockW = blockOf(side)
+  // tinggi pelat dan posisinya dari tepi bawah pelat (piksel CSS y ke bawah)
+  const plateH = hintGap + boxH + nameGap + padTop + padBot
+  const preferred = height / 2 - (-height / 2 + Math.max(84, height * 0.14)) + boxH / 2 + nameGap + padBot
+  let bottom = Math.min(height - L.bottom, preferred)
+  const hits = (half, b) => obstacles.filter((r) => r.x1 > width / 2 - half && r.x0 < width / 2 + half
+    && r.y0 < b + L.clear && r.y1 > b - plateH - L.clear)
+  // 1) persempit blok (nama tetangga lebih dekat) kalau itu cukup untuk lepas dari kotak UI
+  let hit = hits(blockW / 2, bottom)
+  if (hit.length) {
+    const half = Math.min(...hit.map((r) => (r.x0 >= width / 2 ? r.x0 - width / 2 : width / 2 - r.x1))) - L.clear
+    const s = Math.floor((2 * half - 130) / 2)
+    if (s >= L.minSide && blockOf(s) <= 2 * half) {
+      side = Math.min(side, s)
+      blockW = blockOf(side)
+    }
+  }
+  // 2) masih menabrak: naikkan blok sampai tepi bawahnya di atas kotak UI tertinggi yang menabrak
+  hit = hits(blockW / 2, bottom)
+  if (hit.length) bottom = Math.min(bottom, ...hit.map((r) => r.y0 - L.clear))
+  const nameY = height / 2 - bottom + padBot
+  const boxY = nameY + boxH / 2 + nameGap
+  const hintY = boxY + boxH / 2 + hintGap
+  const plateY = nameY - padBot + plateH / 2
+  // panah di kiri kanan tengah layar (ref 14 sekitar 13% dari tepi), ultrawide dibatasi
+  const ax = Math.min(width / 2 - Math.max(60, width * 0.13), height * L.arrowMaxH)
+  return {
+    boxW, boxH, boxY, nameY, hintY, side, blockW, plateY, plateH, ax,
+    plateRect: { x0: width / 2 - blockW / 2, x1: width / 2 + blockW / 2, y0: bottom - plateH, y1: bottom },
+  }
 }
 
 function bracketGeometry() {
@@ -123,6 +183,7 @@ export class LinksUI extends Group {
     this.add(...this.plates, ...this.texts, this.bracket, this.arrowL, this.arrowR)
 
     this._bind()
+    this._uiVersion = -1 // layoutVersion UI terakhir yang dipakai (kotak Sound / indeks bisa berubah sesudah resize ini)
     this.resize(engine.container.clientWidth, engine.container.clientHeight)
     this.writeA11y()
   }
@@ -249,14 +310,11 @@ export class LinksUI extends Group {
   resize(width, height) {
     this.width = Math.max(1, width)
     this.height = Math.max(1, height)
-    const boxW = visitWidth(width, height)
-    const boxH = boxW / 3.125
-    // tengah kotak, piksel dari tengah layar. Layar sempit: dinaikkan supaya baris nama di atas Sound dan indeks section
-    const narrow = width < LINKS_UI.narrow
-    const boxY = -height / 2 + (narrow ? 178 : Math.max(84, height * 0.14))
-    const nameY = boxY - boxH / 2 - 26
-    const hintY = boxY + boxH / 2 + 18
-    this.layout = { boxW, boxH, boxY, nameY, hintY }
+    const ui = this.engine.ui
+    this._uiVersion = ui?.layoutVersion ?? -1
+    const lay = linksLayout(width, height, { hintWidth: this.hintText.box?.width ?? 0, obstacles: ui?.bottomRects?.() ?? [] })
+    const { boxW, boxH, boxY, nameY, hintY, side, ax } = lay
+    this.layout = lay
     // bracket sudut
     const hx = boxW / 2
     const hy = boxH / 2
@@ -279,16 +337,12 @@ export class LinksUI extends Group {
     this.visitText.position.set(0, boxY - cap, 0)
     this.name0.position.set(0, nameY - cap, 0)
     this.hintText.position.set(0, hintY - LINKS_UI.hintSize * 0.35, 0)
-    const side = Math.min(LINKS_UI.sideOffset, width * 0.3)
     this.namePrev.position.set(-side, nameY - cap, 0)
     this.nameNext.position.set(side, nameY - cap, 0)
-    // panah di kiri kanan tengah layar (ref 14 sekitar 13% dari tepi)
-    const ax = width / 2 - Math.max(60, width * 0.13)
     this.arrowL.position.set(-ax, 0, 0)
     this.arrowR.position.set(ax, 0, 0)
     // pelat: blok tengah selebar baris nama (atau petunjuk), dari atas petunjuk sampai bawah nama
-    const blockW = Math.min(width - 24, Math.max(2 * side + 130, (this.hintText.box?.width ?? 0) + 40, boxW + 40))
-    this._placePlate(this.plate, 0, (hintY + 14 + nameY - 16) / 2, blockW, hintY + 14 - (nameY - 16), 14, 8)
+    this._placePlate(this.plate, 0, lay.plateY, lay.blockW, lay.plateH, 14, 8)
     this._placePlate(this.plateL, -ax, 0, 84, 34, 10, 6)
     this._placePlate(this.plateR, ax, 0, 84, 34, 10, 6)
   }
@@ -328,6 +382,8 @@ export class LinksUI extends Group {
   update({ progress, allowed, ratio }) {
     const [a, b] = LINKS_UI.active
     const on = allowed && progress > a && progress < b
+    // kotak UI bawah berubah (resize UI sesudah resize ini, ganti sentuh / mouse): tata letak dihitung ulang
+    if (this.engine.ui && this.engine.ui.layoutVersion !== this._uiVersion) this.resize(this.width, this.height)
     if (on !== this.enabled) {
       this.enabled = on
       if (on) this._reveal()

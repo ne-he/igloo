@@ -25,10 +25,11 @@ export const TOP_LINKS = {
 }
 
 /**
- * Tata letak murni: tombol berjajar rata kanan. widths = lebar teks tiap tombol (px).
+ * Tata letak murni: tombol berjajar rata kanan. widths = lebar teks tiap tombol (px). minHit = tinggi area klik
+ * minimal (layar sentuh, TOUCH_TARGET di layout.js).
  * @returns {{items: {x:number, baseline:number, width:number}[], hits: object[], box: object}}
  */
-export function layoutTopLinks({ right, baseline, size, capHeight }, widths) {
+export function layoutTopLinks({ right, baseline, size, capHeight, minHit = 0 }, widths) {
   const T = TOP_LINKS
   const cap = capHeight * size
   const items = []
@@ -40,7 +41,8 @@ export function layoutTopLinks({ right, baseline, size, capHeight }, widths) {
   }
   const hp = T.hitPad * size
   const hx = Math.min(hp, (T.gap * size) / 2) // area klik tombol bertetangga tidak boleh saling menimpa
-  const hits = items.map((q) => ({ x0: q.x - hx, y0: baseline - cap - hp, x1: q.x + q.width + hx, y1: baseline + hp }))
+  const hy = Math.max(hp, (minHit - cap) / 2) // sentuh: area klik setinggi jari
+  const hits = items.map((q) => ({ x0: q.x - hx, y0: baseline - cap - hy, x1: q.x + q.width + hx, y1: baseline + hy }))
   const box = { x0: Math.min(...items.map((q) => q.x)), y0: baseline - cap, x1: right, y1: baseline }
   return { items, hits, box, cap }
 }

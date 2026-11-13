@@ -4,7 +4,7 @@ import { bus } from '../../engine/Bus.js'
 import { clamp, lerpFPS } from '../../engine/math.js'
 import { MsdfText } from '../../text/MsdfText.js'
 import { createTextMaterial } from '../../text/textMaterial.js'
-import { PANEL, layoutPanel, chipText } from './panelLayout.js'
+import { PANEL, layoutPanel, chipText, panelMargin } from './panelLayout.js'
 import { LabelPlate } from '../crystals/LabelParts.js'
 import { audio, SOUNDS } from './audio.js'
 import content from '../../content/content.js'
@@ -307,9 +307,9 @@ export class DetailPanel extends Group {
   resize(width, height) {
     this.width = width
     this.height = height
-    // fade tepi area scroll: tak terlihat di luar 65 px, penuh mulai 130 px dari tepi
+    // fade tepi area scroll: tak terlihat di luar 65 px, penuh mulai 130 px dari tepi (layar pendek lebih kecil)
     const H = height
-    const m = PANEL.margin
+    const m = panelMargin(H)
     this.shared.uClip.value.set(m / H, (2 * m) / H, 1 - (2 * m) / H, 1 - m / H)
     this.layout()
   }

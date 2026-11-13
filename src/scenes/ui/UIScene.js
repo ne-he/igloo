@@ -8,7 +8,7 @@ import { MsdfFont } from '../../text/MsdfFont.js'
 import { MsdfText } from '../../text/MsdfText.js'
 import { layoutText } from '../../text/layout.js'
 import { glyphTableTexture } from '../../text/textMaterial.js'
-import { computeUILayout, UI_RATIOS, UI_BREAKPOINTS } from './layout.js'
+import { computeUILayout, UI_RATIOS, UI_BREAKPOINTS, TOUCH_TARGET } from './layout.js'
 import { FactLabel } from './FactLabel.js'
 import { ScrollCue } from './ScrollCue.js'
 import { SectionIndex } from './SectionIndex.js'
@@ -41,6 +41,9 @@ const CLOSE = { width: 7.2, height: 3, corner: 0.8, top: -0.3 }
 // Ikon speaker di kanan teks Sound (em ukuran teks): jarak dari teks, tinggi ikon. Garis, bukan tekstur.
 const SPEAKER = { gap: 0.7, height: 0.95 }
 const HIT_PAD = 8 // px, area klik tombol di luar kotak teks
+// Bayangan tinta wordmark (13 Nov 2026): di ruang link ponsel tinggi, NEMI putih jatuh tepat di atas cincin lampu
+// putih dan hilang. Salinan tinta di belakangnya, digeser seperti bayangan teks UI lain.
+const LOGO_SHADOW = { offset: 1.5, alpha: 0.5 }
 
 const soundLabel = (on) => `${content.ui.sound.label} ${on ? content.ui.sound.on : content.ui.sound.off}`
 
@@ -60,6 +63,9 @@ export class UIScene extends Scene {
     this.soundOn = false
     this.soundRect = null
     this.soundHover = false
+    // layar sentuh: area klik minimal TOUCH_TARGET. Awal dari media query, lalu ikut alat input terakhir.
+    this.touch = typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches
+    this.layoutVersion = 0 // naik tiap resize, dibaca LinksUI (blok ruang link menghindari Sound dan indeks)
   }
 
   async build(engine) {
@@ -84,6 +90,12 @@ export class UIScene extends Scene {
       mesh.uniforms.uShow2.value = 0
       this.add(mesh)
     }
+    // bayangan wordmark: seed dan objek uniform reveal sama dengan logo, jadi scramble dan wipe-nya kembar
+    this.logoShadow = new MsdfText(f, { text: c.brand.name, color: 0x1e1e2c, bold: LOGO_BOLD, seed: 11, opacity: LOGO_SHADOW.alpha })
+    this.logoShadow.name = 'ui_logoShadow'
+    for (const k of ['uShow1', 'uShow2', 'uBlink']) this.logoShadow.material.uniforms[k] = t.logo.material.uniforms[k]
+    this.logoShadow.renderOrder = t.logo.renderOrder - 1
+    this.add(this.logoShadow)
 
     // Ukuran yang tidak bergantung breakpoint (em), dipakai computeUILayout.
     this._measures = {
@@ -129,6 +141,7 @@ export class UIScene extends Scene {
     this.writeA11y()
     bus.on('resize', ({ width, height }) => this.resize(width, height))
     bus.on('ui_intro', () => this.intro())
+    bus.on('pointer_down', (input) => this._setTouch(input.pointerType === 'touch' || input.pointerType === 'pen'))
     bus.on('pointer_move', (input) => {
       this._hoverClose(input.position)
       this._hoverSound(input.position)
@@ -183,14 +196,18 @@ export class UIScene extends Scene {
     cam.bottom = -height
     cam.updateProjectionMatrix()
     if (!this.font) return
-    const L = computeUILayout(width, height, this._measures)
+    const L = computeUILayout(width, height, { ...this._measures, touch: this.touch })
     this.layout = L
+    this.layoutVersion++
     const t = this.texts
     const place = (mesh, spec, extra = {}) => {
       mesh.relayout({ size: spec.size, lineHeight: spec.lineHeight, maxWidth: spec.maxWidth ?? Infinity, ...extra })
       mesh.position.set(spec.x, -spec.baseline, 0)
     }
     place(t.logo, L.logo, { letterSpacing: L.logo.letterSpacing })
+    place(this.logoShadow, L.logo, { letterSpacing: L.logo.letterSpacing })
+    this.logoShadow.position.x += LOGO_SHADOW.offset
+    this.logoShadow.position.y -= LOGO_SHADOW.offset
     if (t.copyrightTitle) place(t.copyrightTitle, L.copyrightTitle)
     if (t.copyrightText) place(t.copyrightText, L.copyrightText)
     place(t.sound, L.sound)
@@ -203,6 +220,7 @@ export class UIScene extends Scene {
       right: width - L.sound.x,
       baseline: Math.round(-(t.logo.position.y + lb.y) + lb.height / 2 + (this.font.capHeight * topSize) / 2),
       size: topSize,
+      minHit: L.touch ? TOUCH_TARGET : 0,
     })
     this._layoutClose(width)
     this._layoutSound()
@@ -216,6 +234,28 @@ export class UIScene extends Scene {
     for (const r of [this.scrollCue.rect, this.sectionIndex.boxRect, this.topLinks.boxRect]) {
       if (r) this.factLabel.avoid.push({ x0: r.x0 - 10, y0: r.y0 - 10, x1: r.x1 + 10, y1: r.y1 + 10 })
     }
+  }
+
+  /** Alat input berganti sentuh / mouse: area klik dihitung ulang. */
+  _setTouch(on) {
+    if (on === this.touch) return
+    this.touch = on
+    if (this.layout) this.resize(this.layout.width, this.layout.height)
+  }
+
+  /**
+   * Kotak UI bawah (Sound, indeks section), piksel CSS y ke bawah. Dipakai blok ruang link. Layar sentuh: area klik
+   * yang lebih tinggi dari teksnya ikut dihindari, supaya tap di tepi bawah blok tidak mengenai Sound / indeks.
+   */
+  bottomRects() {
+    const s = this.soundRect
+    const out = [this.sectionIndex.visualRect]
+    if (this.touch) out.push(this.sectionIndex.boxRect)
+    if (s) {
+      const py = this.touch ? Math.max(HIT_PAD, (TOUCH_TARGET - (s.y1 - s.y0)) / 2) : 0
+      out.push({ x0: s.x0, y0: s.y0 - py, x1: s.x1, y1: s.y1 + py })
+    }
+    return out.filter(Boolean)
   }
 
   /**
@@ -283,7 +323,9 @@ export class UIScene extends Scene {
   _inSound(p) {
     const r = this.soundRect
     if (!r || !this.introStarted) return false
-    return p.x >= r.x0 - HIT_PAD && p.x <= r.x1 + HIT_PAD && p.y >= r.y0 - HIT_PAD && p.y <= r.y1 + HIT_PAD
+    // sentuh: area klik setinggi jari (teks Sound cuma setinggi huruf kapital)
+    const py = this.touch ? Math.max(HIT_PAD, (TOUCH_TARGET - (r.y1 - r.y0)) / 2) : HIT_PAD
+    return p.x >= r.x0 - HIT_PAD && p.x <= r.x1 + HIT_PAD && p.y >= r.y0 - py && p.y <= r.y1 + py
   }
 
   _hoverSound(p) {

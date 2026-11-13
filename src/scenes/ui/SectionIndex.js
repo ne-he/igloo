@@ -5,7 +5,7 @@ import { InkText, InkLines, SoftPlate } from './uiParts.js'
 import { layoutSectionIndex } from './layout.js'
 import { sectionLabel } from './sectionNav.js'
 
-// Indeks section kanan bawah, cermin blok Sound: "01 IGLOO / 02 ABOUT ME / 03 CONTACT" (ponsel: nomor saja, bertumpuk).
+// Indeks section kanan bawah, cermin blok Sound: "01 IGLOO / 02 ABOUT ME / 03 CONTACT" (ponsel: nomor saja, satu baris).
 // Item aktif putih penuh dengan garis penanda pendek di kirinya, item lain redup. Hover = scramble ulang + bunyi
 // "ui-long" seperti tombol Sound. Klik ditangani UIScene, lompatnya diurus ScrollGuide.
 
@@ -86,6 +86,8 @@ export class SectionIndex extends Group {
     const y1 = Math.max(...it.map((q) => q.baseline), ...this.lay.markers.map((m) => m.y))
     this.plate.setBox(x0 - pad, y0 - pad, x1 + pad, y1 + pad, S.soft * spec.size, S.radius * spec.size)
     this.boxRect = b
+    // kotak yang terlihat (teks + penanda + pad pelat), dipakai blok ruang link supaya tidak menabrak indeks
+    this.visualRect = { x0: x0 - pad, y0: y0 - pad, x1: x1 + pad, y1: y1 + pad }
     this.marker.ready = false
   }
 

@@ -57,6 +57,13 @@
       .note { margin: 0 0 18px; padding: 10px 12px; border: 1px solid var(--line); font-size: 13px; color: #e6ebf5; }
       .note[hidden] { display: none; }
       @media (max-width: 520px) { body { font-size: 15px; } .wrap { padding: 20px 16px 64px; } h1 { margin-top: 40px; } nav.jump { gap: 14px; } }
+      /* layar sentuh: tiap link minimal sekitar 44 px supaya enak di-tap (audit responsif 13 Nov 2026) */
+      @media (pointer: coarse) {
+        .enter { padding: 14px 14px; }
+        nav.jump { padding: 0; }
+        nav.jump a { display: inline-block; padding: 12px 0; }
+        .links a { display: inline-block; min-width: 44px; padding: 12px 12px; text-align: center; }
+      }
     </style>
   </head>
   <body>
