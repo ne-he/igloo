@@ -155,15 +155,15 @@ def dot_pattern():
 
 
 # ---------------------------------------------------------------- blurry text atlas
-LINES = [
-    'ICE CORE 0447',
-    'SAMPLE / 03 OF 09',
-    'DRIFT 0.0031 MM',
-    'DEPTH 12.80 M',
-    'THAW LOCK : ON',
-    'GRID 45 X 45',
-    'FIELD LOG 2026.10',
-    'NODE 7 / STANDBY',
+LINES = [  # audit visual Nov 2026: fakta asli (content.js), bukan jargon lab palsu
+    'DATA SCIENCE / BINUS',
+    'JAKARTA / INDONESIA',
+    'PYTHON / SQL / ML',
+    'NLP ON 617K REVIEWS',
+    'RESNET50 91.6% ACC',
+    'GITHUB: NE-HE',
+    'OPEN TO INTERNSHIPS',
+    'BUILT AND SHIPPED',
 ]
 
 

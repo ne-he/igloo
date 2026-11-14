@@ -56,6 +56,8 @@ export default {
       title: 'NEMI_SEC_01 ABOUT',
       date: '17/10/2026', // tanggal konten diperbarui
       temp: 1.05,
+      tag: 'JAKARTA / ID', // label di atas [ OPEN ] (ASCII, atlas MSDF)
+      stat: { label: 'STUDY', value: 'DATA SCI\nSEM 5' },
       crystal: 'crystal1',
       inner: 'inner1',
       heading: 'About',
@@ -109,6 +111,8 @@ export default {
       title: 'NEMI_SEC_02 JOURNEY',
       date: '17/10/2026',
       temp: -2.4,
+      tag: '2024 TO NOW',
+      stat: { label: 'ROLES', value: 'HOPHOP\nBNI + BINUS' },
       crystal: 'crystal2',
       inner: 'inner2',
       heading: 'Journey',
@@ -155,6 +159,8 @@ export default {
       title: 'NEMI_SEC_03 PROJECTS',
       date: '17/10/2026',
       temp: 0.6,
+      tag: 'LIVE DEMOS',
+      stat: { label: 'BEST', value: '91.6% ACC\nRESNET50' },
       crystal: 'crystal3',
       inner: 'inner3',
       heading: 'Projects',

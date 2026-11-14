@@ -310,8 +310,13 @@ uniform float uSize;
 uniform float uVisible;
 varying float vShade;
 varying float vSpeed;
+varying float vSpark;
 void main() {
   ivec2 ij = ivec2(position.xy);
+  // audit visual Nov 2026: ukuran bervariasi + kilau es acak (bentuk tidak lagi rata seperti kerikil)
+  float h = fract(sin(dot(position.xy, vec2(12.9898, 78.233))) * 43758.5453);
+  float tw = sin(uTime * (1.3 + 2.0 * h) + h * 60.0);
+  vSpark = step(0.93, h) * smoothstep(0.55, 1.0, tw);
   vec4 P = texelFetch(tPos, ij, 0);
   vec4 V = texelFetch(tVel, ij, 0);
   vShade = P.w;
@@ -319,7 +324,7 @@ void main() {
   vec4 mv = modelViewMatrix * vec4(P.xyz, 1.0);
   gl_Position = projectionMatrix * mv;
   // ukuran asli: size / jarak pandang * resY / 1300
-  gl_PointSize = uSize / max(-mv.z, 0.05) * uResolution.y / 1300.0;
+  gl_PointSize = uSize * (0.78 + 0.44 * h) / max(-mv.z, 0.05) * uResolution.y / 1300.0;
   if (uVisible < 0.5) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
 }
 `
@@ -331,8 +336,10 @@ uniform vec3 uColorDark;
 uniform vec3 uColorLight;
 uniform vec3 uColorFast;
 uniform float uShow;
+uniform vec3 uColorRim;
 varying float vShade;
 varying float vSpeed;
+varying float vSpark;
 void main() {
   vec2 c = gl_PointCoord * 2.0 - 1.0;
   float r2 = dot(c, c);
@@ -346,6 +353,10 @@ void main() {
   float fast = fit(vSpeed, 0.003, 0.005, 0.0, 1.0);
   fast *= fast;
   col = mix(col, uColorFast, fast);
+  // pinggir bola menyala biru es + kilau sesekali: bentuk terbaca sebagai es, bukan abu
+  float rim = pow(1.0 - n.z, 2.5);
+  col = mix(col, uColorRim, rim * 0.55);
+  col += vSpark * (1.0 - r2) * 0.6;
   // partikel cepat sedikit transparan (motion blur murah)
   float a = 1.0 - fast * 0.5;
   // uShow 0 = netral untuk blending ini (warna 1, alpha 0 -> dst tidak berubah)
@@ -469,8 +480,9 @@ export class VolumeParticles {
         uVisible: { value: 0 },
         uShow: { value: 0 },
         uLightView: { value: new Vector3(0, 1, 0) },
-        uColorDark: { value: new Color('#222b42') },
-        uColorLight: { value: new Color('#bdc6d4') },
+        uColorDark: { value: new Color('#3a4866') },
+        uColorLight: { value: new Color('#e2eaf6') },
+        uColorRim: { value: new Color('#a9c8ec') },
         uColorFast: { value: new Color('#d7ebfa') },
       },
       vertexShader: RENDER_VERT,

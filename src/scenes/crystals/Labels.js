@@ -246,9 +246,10 @@ export class CrystalLabels extends Group {
     const parts = titleParts(project)
     this.kicker = mk(parts.kicker, LABELS.title, 'left', 1, { letterSpacing: TITLE.kickerSpacing })
     this.heading = mk(parts.heading, LABELS.heading, 'left', 7, { letterSpacing: TITLE.headingSpacing, bold: TITLE.headingBold })
-    this.date = mk(dateText(project.date), LABELS.date, 'right', 2)
-    this.tempLabel = mk('TEMP', LABELS.temp, 'left', 3)
-    this.tempValue = mk(formatTemp(project.temp), LABELS.temp, 'right', 4)
+    // audit visual Nov 2026: tag dan stat asli (content.js) menggantikan tanggal dan TEMP yang tidak bermakna bagi rekruter
+    this.date = mk(project.tag || dateText(project.date), LABELS.date, 'right', 2)
+    this.tempLabel = mk(project.stat?.label || 'TEMP', LABELS.temp, 'left', 3)
+    this.tempValue = mk(project.stat?.value || formatTemp(project.temp), LABELS.temp, 'right', 4)
     this.button = mk(this.ui.open, LABELS.button, 'center', 5, { bold: BUTTON.bold })
     this.nudgeText = mk(this.ui.nudge, LABELS.nudge, 'right', 6)
     this.labels = [
@@ -333,7 +334,7 @@ export class CrystalLabels extends Group {
     if (!any) return
 
     // TEMP berdenyut pelan: ganti teks hanya kalau angkanya berubah (buffer dipakai ulang)
-    this.tempValue.setText(formatTemp(this.project.temp + 2 * Math.sin(0.05 * time + this.rand)))
+    if (!this.project.stat) this.tempValue.setText(formatTemp(this.project.temp + 2 * Math.sin(0.05 * time + this.rand)))
 
     // sumbu kamera, ukuran 1 px CSS di kedalaman kristal, skala label dari tinggi em target
     const e = camera.matrixWorld.elements
@@ -512,7 +513,7 @@ export class CrystalLabels extends Group {
       const T = LABELS.temp
       const cap = capH * T
       const lh = this.tempValue.layout.lineHeight * T
-      const colRight = this.tempLabel.box.width + 0.03 + 0.42
+      const colRight = this.tempLabel.box.width + 0.03 + Math.max(0.42, this.tempValue.box.width + 0.1)
       const off = block(l, 0, colRight, st.pad * T, 0, colRight + 0.03, true, cap * 0.5)
       this.tempLabel.place(at(_p, l, 0.03 + off, -cap * 0.5), q, s)
       this.tempValue.place(at(_p, l, colRight + off, -cap * 0.5), q, s)
