@@ -126,6 +126,7 @@ const FRAG = /* glsl */ `
   varying vec3 vWorld;
   varying float vEmission;
   varying vec3 vOpt;
+  uniform float uSnowLift;
   uniform vec4 uSnow; // x butiran, y kilau, z rim tembus, w 1 = matikan bayangan dingin (audit visual Nov 2026)
   float hash13(vec3 p) {
     p = fract(p * 0.1031);
@@ -145,6 +146,9 @@ const FRAG = /* glsl */ `
     vec3 V = normalize(cameraPosition - vWorld);
     vec3 N = normalize(cross(dFdx(vWorld), dFdy(vWorld)));
     if (dot(N, V) < 0.0) N = -N;
+    // angkat ke nada salju: grade/LUT igloo menekan perkalian eksposur (diukur: 1.15 -> 2.0 cuma +9 dari 255),
+    // jadi bata dicampur ke warna salju dengan tetap membawa bentuk lightmap (bayangan kontak tetap ada)
+    c = mix(c, vec3(0.80, 0.84, 0.92) * (0.55 + 0.6 * c), uSnowLift);
     float lum = dot(c, vec3(0.299, 0.587, 0.114));
     c = mix(c * vec3(0.86, 0.92, 1.06), c, mix(smoothstep(0.25, 0.75, lum), 1.0, uSnow.w));
     c *= 1.0 + (hash13(floor(vWorld * 140.0)) - 0.5) * uSnow.x;
@@ -210,6 +214,7 @@ export class Bricks {
         tOptions: { value: this.options },
         uIntroMaterialize: { value: 1 },
         uExposure: { value: 1.4 }, // grade igloo v2 (M2) 1.15, dinaikkan Nov 2026: bata terbaca salju, bukan beton
+        uSnowLift: { value: 0.45 }, // diukur Nov 2026: bata 89 -> sekitar 130 dari 255, setara tanah (133)
         uSnow: { value: new Vector4(0.06, 0.55, 0.16, 0.0) },
         uBlue: { value: BLUE },
         uGlimmer: { value: new Vector3(GLIMMER_GLOW.inner, GLIMMER_GLOW.face, GLIMMER_GLOW.cool) },
