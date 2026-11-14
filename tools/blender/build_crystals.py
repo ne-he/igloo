@@ -708,10 +708,116 @@ def inner_orb():
     return o
 
 
+# ---- audit visual Nov 2026: objek dalam yang bercerita (pengganti cairn / pita / bola) ----
+def _remesh_smooth(o, voxel=0.011, factor=0.6, it=6):
+    activate(o)
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    apply_mod(o, 'REMESH', mode='VOXEL', voxel_size=voxel, adaptivity=0.0)
+    apply_mod(o, 'SMOOTH', factor=factor, iterations=it)
+    return o
+
+
+def _join(objs):
+    activate(objs[0], objs[1:])
+    bpy.ops.object.join()
+    return objs[0]
+
+
+def inner_monogram():
+    """ABOUT: monogram NW tebal, menghadap kamera (Blender -Y), sedikit miring."""
+    font = None
+    for f in ('C:/Windows/Fonts/bahnschrift.ttf', 'C:/Windows/Fonts/arialbd.ttf'):
+        if os.path.exists(f):
+            font = bpy.data.fonts.load(f)
+            break
+    cu = bpy.data.curves.new('nw', 'FONT')
+    cu.body = 'N\nW'  # bertumpuk: rongga crystal1 tinggi dan sempit
+    cu.space_line = 0.82
+    if font:
+        cu.font = font
+    cu.size = 0.62
+    cu.extrude = 0.075
+    cu.bevel_depth = 0.022
+    cu.bevel_resolution = 3
+    cu.align_x = 'CENTER'
+    cu.align_y = 'CENTER'
+    cu.space_character = 0.92
+    o = bpy.data.objects.new('nw', cu)
+    link(o)
+    activate(o)
+    bpy.ops.object.convert(target='MESH')
+    o = bpy.context.active_object
+    o.rotation_euler = (math.pi / 2 + 0.08, 0.0, -0.22)
+    return _remesh_smooth(o, 0.008, 0.5, 4)
+
+
+def inner_compass():
+    """JOURNEY: kompas, cincin tebal + jarum bintang empat, jarum utara lebih panjang."""
+    bm = bmesh.new()
+    bmesh.ops.create_cone(bm, cap_ends=True, segments=96, radius1=0.4, radius2=0.4, depth=0.07)
+    outer = obj_from_bm('ring_o', bm)
+    bm = bmesh.new()
+    bmesh.ops.create_cone(bm, cap_ends=True, segments=96, radius1=0.33, radius2=0.33, depth=0.2)
+    hole = obj_from_bm('ring_h', bm)
+    activate(outer)
+    m = outer.modifiers.new('hole', 'BOOLEAN')
+    m.operation = 'DIFFERENCE'
+    m.solver = 'EXACT'
+    m.object = hole
+    bpy.ops.object.modifier_apply(modifier=m.name)
+    bpy.data.objects.remove(hole)
+    # bintang 4 titik di bidang XY, tebal piramida rendah
+    pts = []
+    for k in range(8):
+        a = math.pi / 2 + k * math.pi / 4
+        r = (0.36 if k == 0 else 0.29) if k % 2 == 0 else 0.07
+        pts.append((r * math.cos(a), r * math.sin(a)))
+    verts = [(x, y, 0.0) for x, y in pts] + [(0, 0, 0.07), (0, 0, -0.07)]
+    faces = [(i, (i + 1) % 8, 8) for i in range(8)] + [((i + 1) % 8, i, 9) for i in range(8)]
+    star = obj_from_arrays('star', verts, faces)
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=24, v_segments=12, radius=0.055)
+    hub = obj_from_bm('hub', bm)
+    o = _join([outer, star, hub])
+    o.rotation_euler = (math.pi / 2 - 0.35, 0.25, 0.15)
+    return _remesh_smooth(o, 0.008, 0.5, 4)
+
+
+def inner_screens():
+    """PROJECTS: tiga layar/kartu membulat bertumpuk menyebar, tanda karya yang sudah dikirim."""
+    objs = []
+    for k in range(3):
+        bm = bmesh.new()
+        bmesh.ops.create_cube(bm, size=1.0)
+        o = obj_from_bm(f'card{k}', bm)
+        o.scale = (0.5, 0.05, 0.34)
+        bev = o.modifiers.new('bev', 'BEVEL')
+        bev.width = 0.06
+        bev.segments = 4
+        activate(o)
+        bpy.ops.object.transform_apply(scale=True)
+        bpy.ops.object.modifier_apply(modifier=bev.name)
+        o.location = (-0.1 + 0.1 * k, 0.12 - 0.12 * k, -0.1 + 0.1 * k)
+        o.rotation_euler = (0.0, 0.0, -0.18 + 0.18 * k)
+        objs.append(o)
+    # garis "kode" timbul di kartu depan
+    for j in range(3):
+        bm = bmesh.new()
+        bmesh.ops.create_cube(bm, size=1.0)
+        b = obj_from_bm(f'line{j}', bm)
+        b.scale = (0.3 - 0.07 * j, 0.03, 0.035)
+        b.location = (0.06 - 0.035 * j, -0.27, 0.16 - 0.08 * j)
+        b.rotation_euler = (0, 0, 0.18)
+        objs.append(b)
+    o = _join(objs)
+    o.rotation_euler = (0.12, 0.0, -0.25)
+    return _remesh_smooth(o, 0.008, 0.5, 4)
+
+
 INNERS = {
-    'inner1': dict(make=inner_cairn, target=5600, scale=1.45),
-    'inner2': dict(make=inner_band, target=5800, scale=1.3),
-    'inner3': dict(make=inner_orb, target=5200, scale=1.3),
+    'inner1': dict(make=inner_monogram, target=6400, scale=1.45),
+    'inner2': dict(make=inner_compass, target=6000, scale=1.3),
+    'inner3': dict(make=inner_screens, target=5600, scale=1.3),
 }
 
 
