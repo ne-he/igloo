@@ -1,6 +1,6 @@
 import {
   BatchedMesh, BufferGeometry, BufferAttribute, ShaderMaterial, DataTexture, RGBAFormat, FloatType,
-  NearestFilter, Matrix4, Quaternion, Euler, Vector3, Group,
+  NearestFilter, Matrix4, Quaternion, Euler, Vector3, Vector4, Group,
 } from 'three'
 import '../../glsl/chunks.js'
 import { loadGeometry, loadTexture } from '../../engine/Assets.js'
@@ -126,6 +126,12 @@ const FRAG = /* glsl */ `
   varying vec3 vWorld;
   varying float vEmission;
   varying vec3 vOpt;
+  uniform vec4 uSnow; // x butiran, y kilau, z rim tembus, w 1 = matikan bayangan dingin (audit visual Nov 2026)
+  float hash13(vec3 p) {
+    p = fract(p * 0.1031);
+    p += dot(p, p.zyx + 31.32);
+    return fract((p.x + p.y) * p.z);
+  }
   void main() {
     float disp = vOpt.x;
     // dua lightmap: rakit (muka kontak gelap) dan meledak (tiap sisi kena cahaya), dicampur oleh displacement
@@ -133,6 +139,21 @@ const FRAG = /* glsl */ `
     // bake mengikuti eksposur lembah (rata-rata muka luar ~0.49 sRGB), LUT scene menghancurkan bayangan,
     // jadi bata dinaikkan di sini (linear) supaya sisi yang menghadap kamera tetap abu terang seperti ref 03
     c *= uExposure;
+
+    // balok salju padat (audit visual Nov 2026): bayangan dingin kebiruan, butiran halus, kilau kristal es kecil,
+    // pinggir tembus cahaya biru. Normal dari turunan layar (geometri bata tidak membawa normal).
+    vec3 V = normalize(cameraPosition - vWorld);
+    vec3 N = normalize(cross(dFdx(vWorld), dFdy(vWorld)));
+    if (dot(N, V) < 0.0) N = -N;
+    float lum = dot(c, vec3(0.299, 0.587, 0.114));
+    c = mix(c * vec3(0.86, 0.92, 1.06), c, mix(smoothstep(0.25, 0.75, lum), 1.0, uSnow.w));
+    c *= 1.0 + (hash13(floor(vWorld * 140.0)) - 0.5) * uSnow.x;
+    vec3 cell = floor(vWorld * 55.0);
+    float h = hash13(cell);
+    float tw = pow(max(sin(uTime * 2.3 + h * 40.0 + dot(V, vec3(17.0, 11.0, 23.0))), 0.0), 8.0);
+    c += step(0.993, h) * tw * uSnow.y * vec3(0.9, 0.96, 1.0);
+    float rim = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 3.0);
+    c += rim * uSnow.z * vec3(0.72, 0.86, 1.0);
 
     // intro: dibangun dari atas ke bawah, pita scan biru berpola segitiga, di bawah pita belum ada (discard)
     if (uIntroMaterialize < 1.0) {
@@ -188,7 +209,8 @@ export class Bricks {
         tTriangles: { value: tTriangles },
         tOptions: { value: this.options },
         uIntroMaterialize: { value: 1 },
-        uExposure: { value: 1.15 }, // grade igloo v2 (M2): bata ~0.85x terang tanah di dekatnya, seperti ref 03
+        uExposure: { value: 1.4 }, // grade igloo v2 (M2) 1.15, dinaikkan Nov 2026: bata terbaca salju, bukan beton
+        uSnow: { value: new Vector4(0.06, 0.55, 0.16, 0.0) },
         uBlue: { value: BLUE },
         uGlimmer: { value: new Vector3(GLIMMER_GLOW.inner, GLIMMER_GLOW.face, GLIMMER_GLOW.cool) },
       },

@@ -63,6 +63,19 @@ const RING_FRAG = /* glsl */ `
   void main() {
     vec3 base = texture2D(tMap, vUv).rgb * uExposure;
     float g = texture2D(tGlow, vUv).r;
+    // keping es (audit visual Nov 2026, dulu terbaca plastik abu): rona dingin, retakan halus bercahaya,
+    // pinggir tembus biru, kilau kecil. Normal dari turunan layar.
+    vec3 V = normalize(cameraPosition - vWorld);
+    vec3 N = normalize(cross(dFdx(vWorld), dFdy(vWorld)));
+    if (dot(N, V) < 0.0) N = -N;
+    float fr = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 2.5);
+    base *= vec3(0.9, 0.95, 1.06);
+    float crack = 1.0 - smoothstep(0.0, 0.06, abs(sineNoise(vWorld * 2.6 + 3.1)));
+    base += crack * vec3(0.55, 0.75, 1.0) * 0.18;
+    base += fr * vec3(0.6, 0.8, 1.0) * 0.32;
+    vec3 cell = floor(vWorld * 40.0);
+    float h = fract(sin(dot(cell, vec3(12.99, 78.23, 37.71))) * 43758.55);
+    base += step(0.988, h) * pow(max(sin(uTime * 2.0 + h * 50.0), 0.0), 8.0) * 0.5;
     vec2 s = gl_FragCoord.xy / uResolution;
     // cincin jauh larut ke gradient ruang (kabut tanpa scene.fog)
     vec3 col = mix(base, roomGradient(s), smoothstep(2.5, 10.0, vDepth) * 0.85);
